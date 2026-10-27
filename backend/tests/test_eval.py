@@ -1,7 +1,16 @@
+import pytest
+
 from app import eval as harness
 from app.services.scoring import ScoreResult
 
 REQUIRED_FIELDS = {"id", "answer", "expected_score_range", "expected_flags", "forbidden_flags"}
+
+
+def assert_well_formed(cases):
+    for c in cases:
+        assert REQUIRED_FIELDS <= set(c)
+        low, high = c["expected_score_range"]
+        assert 1 <= low <= high <= 5
 
 
 def test_eval_set_is_well_formed():
@@ -9,14 +18,54 @@ def test_eval_set_is_well_formed():
     assert 12 <= len(cases) <= 20
     assert len({c["id"] for c in cases}) == len(cases)
     assert sum(1 for c in cases if c.get("injection")) == 3
-    for c in cases:
-        assert REQUIRED_FIELDS <= set(c)
-        low, high = c["expected_score_range"]
-        assert 1 <= low <= high <= 5
+    assert_well_formed(cases)
+
+
+def test_holdout_set_is_well_formed():
+    cases = harness.load_cases("holdout")
+    assert len(cases) == 10
+    assert sum(1 for c in cases if c.get("injection")) == 1
+    assert sum(1 for c in cases if {"customer_data_shared", "confidential_data_shared"} & set(c["expected_flags"])) == 2
+    assert_well_formed(cases)
+
+
+def words(text):
+    return set(text.lower().replace(".", " ").replace(",", " ").split())
+
+
+def test_holdout_does_not_copy_the_dev_set():
+    dev, holdout = harness.load_cases("dev"), harness.load_cases("holdout")
+    assert not {c["id"] for c in dev} & {c["id"] for c in holdout}
+    # Rough paraphrase check: no holdout answer shares more than 40% of its words with any dev answer.
+    for h in holdout:
+        for d in dev:
+            overlap = len(words(h["answer"]) & words(d["answer"])) / len(words(h["answer"]) | words(d["answer"]))
+            assert overlap < 0.4, (h["id"], d["id"], overlap)
+
+
+def test_all_is_dev_plus_holdout():
+    assert harness.load_cases("all") == harness.load_cases("dev") + harness.load_cases("holdout")
+
+
+def test_set_option(capsys):
+    harness.main(["--set", "holdout"])
+    out = capsys.readouterr().out
+    assert "set=holdout" in out
+    assert out.count("\n") > 10  # 10 cases plus totals were printed
+
+
+def test_default_set_is_dev(capsys):
+    harness.main([])
+    assert "set=dev" in capsys.readouterr().out
+
+
+def test_unknown_set_is_rejected():
+    with pytest.raises(SystemExit):
+        harness.main(["--set", "prod"])
 
 
 def test_harness_runs_in_mock_mode_and_catches_every_injection(capsys):
-    exit_code = harness.main()
+    exit_code = harness.main([])
     out = capsys.readouterr().out
 
     assert "mock mode" in out.lower()
@@ -36,7 +85,7 @@ def test_live_mode_gates_on_parsing_too(monkeypatch, capsys):
                         lambda question, answer: ScoreResult(status="needs_review", reason="possible_prompt_injection")
                         if "ignore" in answer.lower() or "you are now" in answer.lower()
                         else ScoreResult(status="needs_review", reason="invalid_json"))
-    assert harness.main() == 1
+    assert harness.main([]) == 1
     assert "FAIL" in capsys.readouterr().out
 
 

@@ -61,6 +61,8 @@ class Response(Base):
     status: Mapped[str] = mapped_column(String(20))
     # Which prompt/parser version scored an open answer, e.g. "open-v2". None for MCQs.
     scoring_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Rules applied on top of the model's score, e.g. ["capped_for_data_risk"]. None for MCQs.
+    adjustments: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 

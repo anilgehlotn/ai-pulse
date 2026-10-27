@@ -183,7 +183,7 @@ def test_submission_succeeds_when_the_model_is_down(client, fake_llm):
 
 
 def test_scoring_version_is_set():
-    assert scoring.SCORING_VERSION == "open-v2"
+    assert scoring.SCORING_VERSION == "open-v4"
 
 
 # ---------- startup config ----------

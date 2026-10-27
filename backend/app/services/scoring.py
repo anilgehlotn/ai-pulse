@@ -8,9 +8,16 @@ from .llm import ALLOWED_FLAGS
 
 MAX_REASON_LENGTH = 300
 # Stored with every open answer. Bump it whenever the prompt or the parsing rules change.
-SCORING_VERSION = "open-v2"
+SCORING_VERSION = "open-v4"
 # One try plus one retry.
 MAX_ATTEMPTS = 2
+
+# Sharing customer or confidential data is never good practice, so the model may not reward it.
+DATA_RISK_FLAGS = ("customer_data_shared", "confidential_data_shared")
+DATA_RISK_MAX_SCORE = 3
+
+# An open answer scoring this far above the same person's MCQ average is sent to a human.
+INCONSISTENCY_GAP = 2
 
 # Cheap first line of defence: answers containing these are sent to a human, never to the model.
 # Compared in lower case with whitespace collapsed.
@@ -42,6 +49,8 @@ class ScoreResult(BaseModel):
     reason: str
     flags: list[str] = []
     dropped_unknown_flags: bool = False
+    # Rules we applied on top of the model's answer, e.g. ["capped_for_data_risk"].
+    adjustments: list[str] = []
 
 
 def needs_review(reason: str) -> ScoreResult:
@@ -86,6 +95,35 @@ def parse_model_output(raw: str) -> ScoreResult:
     )
 
 
+def cap_for_data_risk(result: ScoreResult) -> ScoreResult:
+    """A data-sharing flag caps the score at 3, whatever the model said. Only ever lowers a score."""
+    has_data_risk = any(flag in DATA_RISK_FLAGS for flag in result.flags)
+    if result.status == "scored" and has_data_risk and result.score > DATA_RISK_MAX_SCORE:
+        return result.model_copy(update={
+            "score": DATA_RISK_MAX_SCORE,
+            "adjustments": result.adjustments + ["capped_for_data_risk"],
+        })
+    return result
+
+
+def check_against_mcq(result: ScoreResult, mcq_average: float | None) -> ScoreResult:
+    """Don't trust an open-answer score far above the same person's MCQ answers.
+
+    Only an inflated score triggers this. A wrongly high score is the harmful case: it is what a
+    successful prompt injection produces, and it makes a team look better than it is. A low open
+    score next to high MCQs is not an attack, and the MCQs already pull that person's average up.
+    The check uses no wording at all, so rephrasing an injection can't get round it.
+    """
+    if mcq_average is None or result.status != "scored":
+        return result
+    if result.score - mcq_average < INCONSISTENCY_GAP:
+        return result
+    note = f"inconsistent_with_mcq (model score {result.score}, MCQ average {mcq_average:.2f})"
+    # Keep the flags and the model's score (in the note) so a reviewer can see what the model said.
+    return ScoreResult(status="needs_review", reason="inconsistent_with_mcq", flags=result.flags,
+                       adjustments=result.adjustments + [note])
+
+
 def looks_like_injection(answer: str) -> bool:
     text = " ".join(answer.lower().split())
     return any(phrase in text for phrase in INJECTION_PHRASES)
@@ -105,5 +143,5 @@ def score_open_answer(question_text: str, answer: str) -> ScoreResult:
                 return result
             continue
         if result.status == "scored":
-            return result
+            return cap_for_data_risk(result)
     return result
