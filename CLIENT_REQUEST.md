@@ -11,3 +11,16 @@
 > Thanks, Northwind HR
 
 Not started yet.
+
+---
+
+## Status
+
+Both items are done, in #10.
+
+1. **No small groups on the dashboard:** done (#1). Teams under 5 respondents are merged into "Other teams" or
+   hidden, the overall figure is hidden whenever anyone is hidden, and risk counts under 5 read "fewer than 5".
+2. **Right to delete:** done (#2). Employees can delete all their answers from My report; dashboards change on the
+   next request.
+
+Open questions for Northwind are listed in the README under "What I'd ask Northwind".

@@ -8,8 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run as an unprivileged user that can only write to /app (the SQLite file lives there).
-RUN useradd --create-home appuser && chown -R appuser /app
+# Run as an unprivileged user. /data is where docker-compose mounts the SQLite volume;
+# creating it here owned by appuser means a new named volume starts out writable.
+RUN useradd --create-home appuser && mkdir /data && chown -R appuser /app /data
 USER appuser
 
 EXPOSE 8000
