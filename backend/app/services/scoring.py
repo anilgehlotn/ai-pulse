@@ -8,9 +8,13 @@ from .llm import ALLOWED_FLAGS
 
 MAX_REASON_LENGTH = 300
 # Stored with every open answer. Bump it whenever the prompt or the parsing rules change.
-SCORING_VERSION = "open-v2"
+SCORING_VERSION = "open-v3"
 # One try plus one retry.
 MAX_ATTEMPTS = 2
+
+# Sharing customer or confidential data is never good practice, so the model may not reward it.
+DATA_RISK_FLAGS = ("customer_data_shared", "confidential_data_shared")
+DATA_RISK_MAX_SCORE = 3
 
 # Cheap first line of defence: answers containing these are sent to a human, never to the model.
 # Compared in lower case with whitespace collapsed.
@@ -42,6 +46,8 @@ class ScoreResult(BaseModel):
     reason: str
     flags: list[str] = []
     dropped_unknown_flags: bool = False
+    # Rules we applied on top of the model's answer, e.g. ["capped_for_data_risk"].
+    adjustments: list[str] = []
 
 
 def needs_review(reason: str) -> ScoreResult:
@@ -86,6 +92,17 @@ def parse_model_output(raw: str) -> ScoreResult:
     )
 
 
+def cap_for_data_risk(result: ScoreResult) -> ScoreResult:
+    """A data-sharing flag caps the score at 3, whatever the model said. Only ever lowers a score."""
+    has_data_risk = any(flag in DATA_RISK_FLAGS for flag in result.flags)
+    if result.status == "scored" and has_data_risk and result.score > DATA_RISK_MAX_SCORE:
+        return result.model_copy(update={
+            "score": DATA_RISK_MAX_SCORE,
+            "adjustments": result.adjustments + ["capped_for_data_risk"],
+        })
+    return result
+
+
 def looks_like_injection(answer: str) -> bool:
     text = " ".join(answer.lower().split())
     return any(phrase in text for phrase in INJECTION_PHRASES)
@@ -105,5 +122,5 @@ def score_open_answer(question_text: str, answer: str) -> ScoreResult:
                 return result
             continue
         if result.status == "scored":
-            return result
+            return cap_for_data_risk(result)
     return result

@@ -12,12 +12,12 @@ with open(_CANNED_PATH) as f:
 
 def scored(score, reason, flags=(), dropped=False):
     return {"status": "scored", "score": score, "reason": reason, "flags": list(flags),
-            "dropped_unknown_flags": dropped}
+            "dropped_unknown_flags": dropped, "adjustments": []}
 
 
 def needs_review(reason):
     return {"status": "needs_review", "score": None, "reason": reason, "flags": [],
-            "dropped_unknown_flags": False}
+            "dropped_unknown_flags": False, "adjustments": []}
 
 
 # Expected outcome for each canned response in data/mock_ai_responses.json, in file order.

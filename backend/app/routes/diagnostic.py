@@ -62,6 +62,7 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
             resp.score = result.score
             resp.reason = result.reason
             resp.flags = result.flags
+            resp.adjustments = result.adjustments
             resp.scoring_version = SCORING_VERSION
         new_rows.append(resp)
 
