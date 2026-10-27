@@ -1,7 +1,12 @@
 """Creates demo data. Run: python -m app.seed
 
+python -m app.seed             wipes the database and seeds it again
+python -m app.seed --if-empty  seeds only if there are no users yet (Docker runs this on every start)
+
 All passwords are: pulse123
 """
+import sys
+
 from .db import Base, engine, SessionLocal
 from . import models
 from .auth import hash_password
@@ -161,5 +166,25 @@ def run():
     db.close()
 
 
-if __name__ == "__main__":
+def run_if_empty():
+    """Seed only a database with no users, so restarting a container never wipes real data."""
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    has_users = db.query(models.User).first() is not None
+    db.close()
+    if has_users:
+        print("Database already has data; not seeding.")
+        return False
     run()
+    return True
+
+
+def main(argv):
+    if "--if-empty" in argv:
+        run_if_empty()
+    else:
+        run()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
