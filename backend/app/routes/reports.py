@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
-from ..utils import maturity_level
+from ..utils import maturity_level, person_summary
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -19,18 +19,15 @@ NEXT_STEPS = {
 @router.get("/me")
 def my_report(m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
     rows = db.query(models.Response).filter_by(membership_id=m.id).all()
-    # Answers awaiting review count as answered but not towards the score or the risks.
-    trusted = [r for r in rows if r.status != "needs_review"]
-    scores = [r.score for r in trusted if r.score is not None]
-    avg = sum(scores) / len(scores) if scores else None
-    flags = sorted({f for r in trusted for f in (r.flags or [])})
+    summary = person_summary(rows)
+    avg = summary["average"]
     return {
         "name": m.user.name,
         "organization": m.org.name,
         "answered": len(rows),
-        "awaiting_review": len(rows) - len(trusted),
+        "awaiting_review": summary["awaiting_review"],
         "average_score": round(avg, 2) if avg is not None else None,
         "level": maturity_level(avg),
-        "risks": flags,
+        "risks": summary["flags"],
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
     }

@@ -5,7 +5,9 @@ All passwords are: pulse123
 from .db import Base, engine, SessionLocal
 from . import models
 from .auth import hash_password
-from .services.questions import load_questions
+from .services.questions import load_questions, questions_for
+from .privacy import publish_groups
+from .routes.dashboard import load_groups
 
 PEOPLE_NORTHWIND = [
     # name, email, department, role, job_role, seniority
@@ -19,6 +21,14 @@ PEOPLE_NORTHWIND = [
     ("Dev Malhotra", "dev@northwind.test", "Engineering", "employee", "engineering", "lead"),
     ("Sara Thomas", "sara@northwind.test", "Engineering", "employee", "engineering", "mid"),
     ("Imran Khan", "imran@northwind.test", "HR", "employee", "manager", "senior"),
+    # Added so Sales and Support have enough respondents to show on the dashboard.
+    ("Farah Ali", "farah@northwind.test", "Sales", "employee", "sales", "mid"),
+    ("Anita Desai", "anita@northwind.test", "Sales", "employee", "sales", "senior"),
+    ("Karan Joshi", "karan@northwind.test", "Sales", "employee", "sales", "junior"),
+    ("Lakshmi Rao", "lakshmi@northwind.test", "Support", "employee", "support", "mid"),
+    ("Nikhil Bose", "nikhil@northwind.test", "Support", "employee", "support", "junior"),
+    ("Tara Singh", "tara@northwind.test", "Support", "employee", "support", "senior"),
+    ("Omar Sheikh", "omar@northwind.test", "Engineering", "employee", "engineering", "senior"),
 ]
 PEOPLE_BLUEPEAK = [
     ("Meera Pillai", "meera@bluepeak.test", None, "admin", "manager", "lead"),
@@ -26,6 +36,38 @@ PEOPLE_BLUEPEAK = [
     ("Lina George", "lina@bluepeak.test", "Stores", "employee", "sales", "junior"),
     ("Kabir Das", "kabir@bluepeak.test", "Customer Care", "employee", "support", "senior"),
 ]
+
+# People who completed the whole diagnostic. Every MCQ is answered with the option worth `level`
+# points and every open answer is scored `level`, so each person's average is exactly `level`.
+# The flags go on their open answers.
+FULL_DIAGNOSTICS = [
+    # email, organization, level, open answer, flags
+    ("neha@northwind.test", "Northwind Logistics", 2, "I paste call notes into ChatGPT and send the summary to customers without reading it.", ["unreviewed_output"]),
+    ("rohan@northwind.test", "Northwind Logistics", 3, "I draft follow-up emails with AI most days but rarely check the product details it adds.", ["unreviewed_output"]),
+    ("anita@northwind.test", "Northwind Logistics", 5, "I built a prompt library for account research that the whole sales team uses, with a review step.", []),
+    ("karan@northwind.test", "Northwind Logistics", 2, "Copilot writes my CRM notes and I paste them in as they are.", ["unreviewed_output"]),
+    ("arjun@northwind.test", "Northwind Logistics", 4, "I draft replies with AI, then check every policy detail against our help centre before sending.", []),
+    ("kavitha@northwind.test", "Northwind Logistics", 3, "I summarise long ticket threads with ChatGPT, including the customer's details.", ["customer_data_shared"]),
+    ("lakshmi@northwind.test", "Northwind Logistics", 3, "I pasted a customer's order history into an AI tool to work out a refund.", ["customer_data_shared"]),
+    ("nikhil@northwind.test", "Northwind Logistics", 2, "AI suggests a reply and I usually send it straight away.", ["unreviewed_output"]),
+    ("tara@northwind.test", "Northwind Logistics", 4, "I use AI to spot recurring issues across tickets and check the patterns by hand.", []),
+    ("dev@northwind.test", "Northwind Logistics", 4, "I use a code assistant for tests and refactors and review every change before merging.", []),
+    ("sara@northwind.test", "Northwind Logistics", 3, "I ask Copilot to write small functions and then read them through.", []),
+    ("omar@northwind.test", "Northwind Logistics", 2, "I let the assistant generate migration scripts and ship them if the tests pass.", ["unreviewed_output"]),
+    ("imran@northwind.test", "Northwind Logistics", 2, "I've tried ChatGPT for job descriptions; I'm not sure what our AI policy says.", ["policy_unaware"]),
+    ("ravi@consult.test", "Northwind Logistics", 3, "I use AI to draft workshop agendas and edit them before sharing.", []),
+    ("ravi@consult.test", "Bluepeak Retail", 3, "I summarise store visit notes with AI and check the figures myself.", []),
+]
+
+
+def print_summary(db, orgs):
+    """Respondents per team, and what leadership will see under the anonymity rule."""
+    for org in orgs:
+        groups = load_groups(db, org)
+        print(f"{org.name}: " + ", ".join(f"{g['name']} {len(g['respondents'])}" for g in groups))
+        published = publish_groups(groups)
+        shown = ", ".join(f"{g['name']} ({g['privacy']})" for g in published["groups"])
+        print(f"  leadership sees: {shown}; overall {published['overall']['privacy']}")
 
 
 def run():
@@ -91,9 +133,21 @@ def run():
     answer("kabir@bluepeak.test", bp, "common-open", "Uploaded our full customer refund list to an AI tool to find patterns.", 3, "Good idea, unsafe data handling.", ["customer_data_shared", "confidential_data_shared"])
     answer("kabir@bluepeak.test", bp, "common-freq", "Daily", 4)
 
+    orgs = {nw.name: nw, bp.name: bp}
+    for email, org_name, level, open_text, flags in FULL_DIAGNOSTICS:
+        org = orgs[org_name]
+        m = db.query(models.Membership).filter_by(user_id=users[email].id, org_id=org.id).first()
+        for q in questions_for(m.job_role, m.seniority):
+            if q["type"] == "mcq":
+                option = next(o for o in q["options"] if o["points"] == level)
+                answer(email, org, q["id"], option["text"], level)
+            else:
+                answer(email, org, q["id"], open_text, level, f"Seeded at level {level}.", flags)
+
     db.commit()
-    db.close()
     print("Seeded. Log in with any seeded email and password 'pulse123'.")
+    print_summary(db, [nw, bp])
+    db.close()
 
 
 if __name__ == "__main__":

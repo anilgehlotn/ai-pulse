@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -6,23 +6,46 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
-from ..utils import maturity_level
+from ..config import MIN_GROUP_SIZE
+from ..privacy import publish_groups
+from ..utils import person_summary
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 UNASSIGNED = "Unassigned"
 
 
-def department_row(name, employees, respondent_averages):
-    """One dashboard row. Every respondent counts once, however many questions they answered."""
-    avg = sum(respondent_averages) / len(respondent_averages) if respondent_averages else None
-    return {
-        "department": name,
-        "employees": employees,
-        "responded": len(respondent_averages),
-        "average_score": round(avg, 2) if avg is not None else None,
-        "level": maturity_level(avg),
-    }
+def load_groups(db: Session, org: models.Organization):
+    """Every team with its headcount and one summary per respondent.
+
+    This is raw, identifiable data. Never return it directly: it must go through publish_groups.
+    """
+    members = db.query(models.Membership).filter_by(org_id=org.id).all()
+    # All responses for the organization in one query, then grouped per person.
+    responses = (
+        db.query(models.Response)
+        .join(models.Membership, models.Response.membership_id == models.Membership.id)
+        .filter(models.Membership.org_id == org.id)
+        .all()
+    )
+    rows_by_member = defaultdict(list)
+    for r in responses:
+        rows_by_member[r.membership_id].append(r)
+
+    teams = [(dept.name, [x for x in members if x.department_id == dept.id]) for dept in org.departments]
+    unassigned = [x for x in members if x.department_id is None]
+    if unassigned:
+        teams.append((UNASSIGNED, unassigned))
+
+    # A respondent is a member with at least one saved answer.
+    return [
+        {
+            "name": name,
+            "employees": len(people),
+            "respondents": [person_summary(rows_by_member[p.id]) for p in people if p.id in rows_by_member],
+        }
+        for name, people in teams
+    ]
 
 
 @router.get("")
@@ -31,46 +54,9 @@ def org_dashboard(m: models.Membership = Depends(current_membership), db: Sessio
         raise HTTPException(403, "Admins only")
 
     # The organization always comes from the signed token, never from the request.
-    org = m.org
-    members = db.query(models.Membership).filter_by(org_id=org.id).all()
-
-    # All responses for the organization in one query, then grouped per person.
-    responses = (
-        db.query(models.Response)
-        .join(models.Membership, models.Response.membership_id == models.Membership.id)
-        .filter(models.Membership.org_id == org.id)
-        .all()
-    )
-    scores_by_member = defaultdict(list)
-    flags_by_member = defaultdict(set)
-    awaiting_review = 0
-    for r in responses:
-        if r.status == "needs_review":
-            awaiting_review += 1
-            continue
-        if r.score is not None:
-            scores_by_member[r.membership_id].append(r.score)
-        flags_by_member[r.membership_id].update(r.flags or [])
-    average_by_member = {mid: sum(s) / len(s) for mid, s in scores_by_member.items()}
-
-    groups = [(dept.name, [x for x in members if x.department_id == dept.id]) for dept in org.departments]
-    unassigned = [x for x in members if x.department_id is None]
-    if unassigned:
-        groups.append((UNASSIGNED, unassigned))
-
-    departments = [
-        department_row(name, len(people), [average_by_member[p.id] for p in people if p.id in average_by_member])
-        for name, people in groups
-    ]
-
-    # A set per person, so someone flagged in two answers counts once.
-    risk_counts = Counter(flag for flags in flags_by_member.values() for flag in flags)
-    # Most people first; ties alphabetically so the order is the same on every request.
-    top_risks = sorted(risk_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
-
+    # Every number below comes out of publish_groups, the single place the anonymity rule is applied.
     return {
-        "organization": org.name,
-        "departments": departments,
-        "top_risks": top_risks,
-        "awaiting_review": awaiting_review,
+        "organization": m.org.name,
+        "min_group_size": MIN_GROUP_SIZE,
+        **publish_groups(load_groups(db, m.org)),
     }

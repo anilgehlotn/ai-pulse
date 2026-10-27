@@ -26,8 +26,8 @@ def test_admin_dashboard(client):
     headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
     r = client.get("/dashboard", headers=headers)
     assert r.status_code == 200
-    # 4 departments plus "Unassigned" for Asha, who is an admin without a department
-    assert [d["department"] for d in r.json()["departments"]] == ["Sales", "Support", "Engineering", "HR", "Unassigned"]
+    # Sales and Support are big enough; Engineering, HR and Unassigned (Asha) are merged.
+    assert [g["name"] for g in r.json()["groups"]] == ["Sales", "Support", "Other teams"]
 
 
 def test_admin_cannot_read_another_org_through_the_url(client):
@@ -35,7 +35,7 @@ def test_admin_cannot_read_another_org_through_the_url(client):
     r = client.get(f"/dashboard?org_id={BLUEPEAK_ID}", headers=headers)
     assert r.status_code == 200
     assert r.json()["organization"] == "Northwind Logistics"
-    assert "Stores" not in {d["department"] for d in r.json()["departments"]}
+    assert "Stores" not in {g["name"] for g in r.json()["groups"]}
 
 
 def test_multi_org_admin_sees_only_the_org_in_the_token(client):
@@ -43,7 +43,8 @@ def test_multi_org_admin_sees_only_the_org_in_the_token(client):
     r = client.get(f"/dashboard?org_id={NORTHWIND_ID}", headers=headers)
     assert r.status_code == 200
     assert r.json()["organization"] == "Bluepeak Retail"
-    assert {d["department"] for d in r.json()["departments"]} == {"Stores", "Customer Care", "Unassigned"}
+    # Bluepeak's 3 teams (Stores, Customer Care, Unassigned), not Northwind's 5
+    assert [(g["name"], g.get("teams_hidden")) for g in r.json()["groups"]] == [("Other teams", 3)]
 
 
 def test_multi_org_user_is_employee_in_other_org(client):
