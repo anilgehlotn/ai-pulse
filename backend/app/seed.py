@@ -48,12 +48,14 @@ def run():
     bp, bp_depts = make_org("Bluepeak Retail", ["Stores", "Customer Care"])
 
     users = {}
+    # bcrypt is deliberately slow, so hash the shared demo password once instead of per user.
+    demo_password_hash = hash_password("pulse123")
 
     def add_people(org, depts, people):
         for name, email, dept, role, job_role, seniority in people:
             u = users.get(email)
             if not u:
-                u = models.User(name=name, email=email, password_hash=hash_password("pulse123"))
+                u = models.User(name=name, email=email, password_hash=demo_password_hash)
                 db.add(u)
                 db.flush()
                 users[email] = u
