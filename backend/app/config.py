@@ -1,4 +1,7 @@
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 # Load .env if present (very small loader, no extra dependency)
 _env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -9,7 +12,27 @@ if os.path.exists(_env_path):
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-SECRET_KEY = os.getenv("SECRET_KEY", "ai-pulse-dev-secret")
+DEV_ONLY_SECRET_KEY = "dev-only-secret-do-not-use-in-production"
+SAFE_FALLBACK_ENVS = ("dev", "test")
+
+
+def resolve_secret_key(secret_key: str, app_env: str) -> str:
+    """Use the configured key; only dev and test may run without one."""
+    if secret_key:
+        return secret_key
+    if app_env not in SAFE_FALLBACK_ENVS:
+        raise RuntimeError(f"SECRET_KEY must be set when APP_ENV is '{app_env}'")
+    logger.warning("SECRET_KEY is not set; using a dev-only key (APP_ENV=%s)", app_env)
+    return DEV_ONLY_SECRET_KEY
+
+
+def parse_origins(value: str) -> list[str]:
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+
+APP_ENV = os.getenv("APP_ENV", "dev")
+SECRET_KEY = resolve_secret_key(os.getenv("SECRET_KEY", ""), APP_ENV)
+CORS_ORIGINS = parse_origins(os.getenv("CORS_ORIGINS", "http://localhost:5173"))
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aipulse.db")
 AI_MODE = os.getenv("AI_MODE", "mock")  # "mock" or "live"
 LLM_API_URL = os.getenv("LLM_API_URL", "")

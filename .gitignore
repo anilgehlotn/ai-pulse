@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 *.db
 .pytest_cache/
+.env
+.venv/
+test.db
+*.sqlite3
+.coverage
+htmlcov/
