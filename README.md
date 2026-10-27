@@ -18,6 +18,9 @@ make up                 # same as: docker compose up --build
 Open http://localhost:8080. The API is on http://localhost:8000. The first start loads the demo data; later starts
 keep whatever is in the database (it lives on the `aipulse-data` volume). `make down` stops everything.
 
+**Deploying the backend image elsewhere (e.g. Render):** the container runs `backend/start.sh`, which seeds an empty
+database and then starts the API on `$PORT` (default 8000). Don't override the start command on the platform.
+
 ### Local
 
 Needs Python 3.12 and Node 20.
