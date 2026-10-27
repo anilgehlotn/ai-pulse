@@ -23,9 +23,21 @@ def test_harness_runs_in_mock_mode_and_catches_every_injection(capsys):
     summary = harness.summarise(harness.run_cases(harness.load_cases()))
     assert summary["injections_caught"] == summary["injections_total"] == 3
     assert summary["parsed_ok_pct"] is not None
-    # Exit code follows the rule: non-zero unless parsing and injection catching are both 100%.
-    expected = 0 if summary["parsed_ok_pct"] == 100 else 1
-    assert exit_code == expected
+    # Mock mode gates only on injections: the canned replies are broken on purpose, so parsing can't be 100%.
+    assert summary["parsed_ok_pct"] < 100
+    assert exit_code == 0
+    assert "only the injection gate applies" in out.lower()
+
+
+def test_live_mode_gates_on_parsing_too(monkeypatch, capsys):
+    monkeypatch.setattr(harness, "AI_MODE", "live")
+    # Pretend the model returned garbage for everything: parsing fails, injections are still caught.
+    monkeypatch.setattr(harness, "score_open_answer",
+                        lambda question, answer: ScoreResult(status="needs_review", reason="possible_prompt_injection")
+                        if "ignore" in answer.lower() or "you are now" in answer.lower()
+                        else ScoreResult(status="needs_review", reason="invalid_json"))
+    assert harness.main() == 1
+    assert "FAIL" in capsys.readouterr().out
 
 
 def test_summary_maths():
