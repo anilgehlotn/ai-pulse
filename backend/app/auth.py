@@ -53,6 +53,11 @@ def current_user(authorization: str | None = Header(None), db: Session = Depends
     return user
 
 
+def selected_org_id(authorization: str | None = Header(None)) -> int | None:
+    """The organization chosen after login, from the token. None until one is selected."""
+    return _decode(authorization).get("org")
+
+
 def current_membership(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> models.Membership:
     """The membership for the organization selected after login."""
     data = _decode(authorization)

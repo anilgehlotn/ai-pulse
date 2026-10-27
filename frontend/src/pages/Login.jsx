@@ -1,29 +1,72 @@
 import React, { useState } from "react";
-import { api, setToken } from "../api.js";
+import { api } from "../api.js";
+import { ErrorBox, InfoBox } from "../components/Status.jsx";
 
-export default function Login({ onDone }) {
+// Seeded by backend/app/seed.py. Only listed in development builds.
+const DEMO_ACCOUNTS = [
+  ["asha@northwind.test", "Admin, Northwind Logistics"],
+  ["ravi@consult.test", "Admin at Bluepeak Retail, employee at Northwind (two organizations)"],
+  ["rohan@northwind.test", "Employee, Sales: uses AI a lot, low safety"],
+  ["priya@northwind.test", "Employee, Support: partly answered"],
+  ["farah@northwind.test", "Employee, Sales: not assessed yet"],
+  ["meera@bluepeak.test", "Admin, Bluepeak Retail"],
+];
+const DEMO_PASSWORD = "pulse123";
+
+export default function Login({ notice, onLoggedIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  async function submit(e) {
-    e.preventDefault();
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
     try {
-      const data = await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-      setToken(data.token);
-      onDone(data);
+      onLoggedIn(await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }));
     } catch (err) {
       setError(err.message);
+      setBusy(false);
     }
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <h2>Sign in</h2>
-      <label>Email<input value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-      <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-      {error && <p className="error">{error}</p>}
-      <button>Sign in</button>
-    </form>
+    <div className="narrow stack">
+      <form className="card stack" onSubmit={submit}>
+        <h1>Sign in to AI Pulse</h1>
+        {notice && <InfoBox>{notice}</InfoBox>}
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input id="email" type="email" autoComplete="username" required value={email}
+                 onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="password">Password</label>
+          <input id="password" type="password" autoComplete="current-password" required value={password}
+                 onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        <ErrorBox message={error} />
+        <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      </form>
+
+      {import.meta.env.DEV && (
+        <aside className="card demo" aria-labelledby="demo-title">
+          <h2 id="demo-title">Demo accounts</h2>
+          <p className="muted small">Development only. Every password is <code>{DEMO_PASSWORD}</code>.</p>
+          <ul>
+            {DEMO_ACCOUNTS.map(([demoEmail, role]) => (
+              <li key={demoEmail}>
+                <button type="button" className="link"
+                        onClick={() => { setEmail(demoEmail); setPassword(DEMO_PASSWORD); }}>
+                  {demoEmail}
+                </button>
+                <span className="muted small"> {role}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
+    </div>
   );
 }
