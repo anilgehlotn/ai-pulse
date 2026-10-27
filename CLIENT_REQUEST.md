@@ -10,8 +10,6 @@
 >
 > Thanks, Northwind HR
 
-Not started yet.
-
 ---
 
 ## Status
