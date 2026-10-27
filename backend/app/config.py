@@ -36,6 +36,13 @@ def check_llm_config(ai_mode: str, api_url: str, model: str) -> None:
             raise RuntimeError(f"AI_MODE is 'live' but {', '.join(missing)} is not set")
 
 
+def check_min_group_size(value: int) -> int:
+    """Groups smaller than this are never shown on their own. Below 3, averages identify people too easily."""
+    if value < 3:
+        raise RuntimeError(f"MIN_GROUP_SIZE must be at least 3, not {value}")
+    return value
+
+
 def parse_origins(value: str) -> list[str]:
     return [origin.strip() for origin in value.split(",") if origin.strip()]
 
@@ -52,5 +59,6 @@ LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_JSON_MODE = os.getenv("LLM_JSON_MODE", "false").lower() == "true"
 check_llm_config(AI_MODE, LLM_API_URL, LLM_MODEL)
 TOKEN_HOURS = 12
+MIN_GROUP_SIZE = check_min_group_size(int(os.getenv("MIN_GROUP_SIZE", "5")))
 # bcrypt cost factor. Each +1 doubles the work; tests lower it to stay fast.
 BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))

@@ -92,20 +92,27 @@ def test_needs_review_rows_are_excluded_from_report_averages_and_flags(client):
     assert report["awaiting_review"] == 1
 
 
-def test_dashboard_counts_answers_awaiting_review_and_ignores_them(client):
-    add_row(*PRIYA, status="needs_review", score=5, flags=["unreviewed_output"], reason="invalid_json")
-    add_row("rohan@northwind.test", "Northwind Logistics", status="needs_review", reason="possible_prompt_injection")
-    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
-    data = client.get("/dashboard", headers=headers).json()
+SUPPORT = ["priya", "arjun", "kavitha", "lakshmi", "nikhil"]
 
-    assert data["awaiting_review"] == 2
-    rows = {d["department"]: d for d in data["departments"]}
-    assert rows["Support"]["average_score"] == 2.5
-    assert rows["Sales"]["responded"] == 1  # Rohan only has an unscored answer
-    assert data["top_risks"] == [["customer_data_shared", 1]]
+
+def test_dashboard_counts_answers_awaiting_review_and_ignores_them(client):
+    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
+    before = client.get("/dashboard", headers=headers).json()
+    # Five Support people each get an unscorable answer that (wrongly) carries a 5 and a flag.
+    for name in SUPPORT:
+        add_row(f"{name}@northwind.test", "Northwind Logistics",
+                status="needs_review", score=5, flags=["confidential_data_shared"], reason="invalid_json")
+    after = client.get("/dashboard", headers=headers).json()
+
+    assert before["overall"]["awaiting_review"] == "fewer than 5"
+    assert after["overall"]["awaiting_review"] == 5
+    assert after["groups"] == before["groups"]  # averages unchanged
+    assert after["overall"]["top_risks"] == before["overall"]["top_risks"]  # flags ignored
 
 
 def test_dashboard_review_count_is_per_org(client):
-    add_row(*PRIYA, status="needs_review", reason="invalid_json")
-    headers, _ = login(client, "meera@bluepeak.test", "Bluepeak Retail")
-    assert client.get("/dashboard", headers=headers).json()["awaiting_review"] == 0
+    for name in SUPPORT:
+        add_row(f"{name}@northwind.test", "Northwind Logistics", status="needs_review", reason="invalid_json")
+    add_row("tom@bluepeak.test", "Bluepeak Retail", status="needs_review", reason="invalid_json")
+    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
+    assert client.get("/dashboard", headers=headers).json()["overall"]["awaiting_review"] == 5

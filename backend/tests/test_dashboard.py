@@ -1,15 +1,22 @@
-"""Expected values are worked out by hand from app/seed.py:
+"""/dashboard on the demo seed. Expected values worked out by hand from app/seed.py.
 
-Northwind: Vikram (Sales) scored 4 and 4 -> 4.0. Priya (Support) scored 2 and 3 -> 2.5.
-           Nobody in Engineering or HR answered. Asha is an admin with no department.
-Bluepeak:  Tom (Stores) scored 3 -> 3.0. Kabir (Customer Care) scored 3 and 4 -> 3.5.
-           Meera and Ravi are admins with no department.
+Northwind respondents (each person's own average):
+  Sales:       Vikram 4.0, Neha 2, Rohan 3, Anita 5, Karan 2      -> 5 respondents, 16 / 5 = 3.2
+               (Farah has not answered; 6 employees)
+  Support:     Priya 2.5, Arjun 4, Kavitha 3, Lakshmi 3, Nikhil 2, Tara 4 -> 6, 18.5 / 6 = 3.08
+  Engineering: Dev 4, Sara 3, Omar 2 -> 3      HR: Imran 2, Ravi 3 -> 2      Unassigned: Asha, no answers
+  Other teams = Engineering + HR + Unassigned -> 5 respondents, (9 + 5) / 5 = 2.8, 6 employees
+  Overall: 16 respondents, (16 + 18.5 + 14) / 16 = 3.03
+  unreviewed_output: Neha, Rohan, Karan, Nikhil, Omar = 5. customer_data_shared: Priya, Kavitha, Lakshmi = 3.
+  policy_unaware: Imran = 1. confidential_data_shared: nobody in Northwind.
+Bluepeak respondents: Tom (Stores), Kabir (Customer Care), Ravi (Unassigned) -> 3 in total, all hidden.
 """
 from app import models
 from app.db import SessionLocal
-from app.routes.dashboard import department_row
-from app.utils import maturity_level
 from tests.conftest import login
+from tests.test_privacy import subtraction_attack
+
+FEWER = "fewer than 5"
 
 
 def dashboard(client, email, org_name):
@@ -19,11 +26,11 @@ def dashboard(client, email, org_name):
     return r.json()
 
 
-def rows_by_name(data):
-    return {d["department"]: d for d in data["departments"]}
+def northwind(client):
+    return dashboard(client, "asha@northwind.test", "Northwind Logistics")
 
 
-def add_response(email, org_name, question_id, score, flags):
+def remove_answers(email, org_name):
     db = SessionLocal()
     m = (
         db.query(models.Membership)
@@ -31,94 +38,76 @@ def add_response(email, org_name, question_id, score, flags):
         .filter(models.User.email == email, models.Organization.name == org_name)
         .one()
     )
-    db.add(models.Response(membership_id=m.id, question_id=question_id, answer="x", score=score, flags=flags,
-                            status="scored"))
+    db.query(models.Response).filter_by(membership_id=m.id).delete()
     db.commit()
     db.close()
 
 
-def test_northwind_department_averages(client):
-    rows = rows_by_name(dashboard(client, "asha@northwind.test", "Northwind Logistics"))
-    assert rows["Sales"] == {"department": "Sales", "employees": 3, "responded": 1,
-                             "average_score": 4.0, "level": "Leader"}
-    assert rows["Support"] == {"department": "Support", "employees": 3, "responded": 1,
-                               "average_score": 2.5, "level": "Exploring"}
-
-
-def test_bluepeak_department_averages_stay_on_the_1_to_5_scale(client):
-    rows = rows_by_name(dashboard(client, "meera@bluepeak.test", "Bluepeak Retail"))
-    assert rows["Stores"]["average_score"] == 3.0
-    assert rows["Stores"]["level"] == "Practitioner"
-    assert rows["Customer Care"]["average_score"] == 3.5
-    assert rows["Customer Care"]["level"] == "Practitioner"
-
-
-def test_department_average_is_mean_of_respondent_averages(client):
-    # Neha answers 4 questions all scored 1 -> her average is 1.0.
-    # Vikram is still 4.0, so Sales = (4.0 + 1.0) / 2 = 2.5, not (4+4+1+1+1+1) / 6 = 2.0.
-    for qid in ("common-policy", "common-data", "common-review", "common-freq"):
-        add_response("neha@northwind.test", "Northwind Logistics", qid, 1, [])
-    sales = rows_by_name(dashboard(client, "asha@northwind.test", "Northwind Logistics"))["Sales"]
-    assert sales["responded"] == 2
-    assert sales["average_score"] == 2.5
-
-
-def test_departments_without_respondents_are_not_assessed(client):
-    rows = rows_by_name(dashboard(client, "asha@northwind.test", "Northwind Logistics"))
-    for name in ("Engineering", "HR"):
-        assert rows[name]["responded"] == 0
-        assert rows[name]["average_score"] is None
-        assert rows[name]["level"] == "Not assessed"
-
-
-def test_members_without_department_are_grouped_as_unassigned(client):
-    nw = rows_by_name(dashboard(client, "asha@northwind.test", "Northwind Logistics"))
-    assert nw["Unassigned"]["employees"] == 1  # Asha
-    bp = rows_by_name(dashboard(client, "meera@bluepeak.test", "Bluepeak Retail"))
-    assert bp["Unassigned"]["employees"] == 2  # Meera and Ravi
-
-
-def test_every_member_is_counted_exactly_once(client):
-    data = dashboard(client, "asha@northwind.test", "Northwind Logistics")
-    assert sum(d["employees"] for d in data["departments"]) == 11  # 10 Northwind people + Ravi
-
-
-def test_risks_are_counted_per_person_not_per_answer(client):
-    # Priya already has customer_data_shared on one answer; a second flagged answer must not double-count her.
-    add_response("priya@northwind.test", "Northwind Logistics", "sup-drafts", 3, ["customer_data_shared"])
-    data = dashboard(client, "asha@northwind.test", "Northwind Logistics")
-    assert data["top_risks"] == [["customer_data_shared", 1]]
-
-    # A second person with the flag does count.
-    add_response("rohan@northwind.test", "Northwind Logistics", "common-open", 3, ["customer_data_shared"])
-    data = dashboard(client, "asha@northwind.test", "Northwind Logistics")
-    assert data["top_risks"] == [["customer_data_shared", 2]]
-
-
-def test_department_row_with_no_respondents():
-    assert department_row("HR", 2, []) == {
-        "department": "HR", "employees": 2, "responded": 0, "average_score": None, "level": "Not assessed",
+def test_northwind_dashboard(client):
+    assert northwind(client) == {
+        "organization": "Northwind Logistics",
+        "min_group_size": 5,
+        "groups": [
+            {"name": "Sales", "privacy": "shown", "employees": 6, "respondents": 5,
+             "average_score": 3.2, "level": "Practitioner"},
+            {"name": "Support", "privacy": "shown", "employees": 6, "respondents": 6,
+             "average_score": 3.08, "level": "Practitioner"},
+            {"name": "Other teams", "privacy": "merged", "teams": ["Engineering", "HR", "Unassigned"],
+             "employees": 6, "respondents": 5, "average_score": 2.8, "level": "Exploring"},
+        ],
+        "overall": {
+            "privacy": "shown", "respondents": 16, "average_score": 3.03, "level": "Practitioner",
+            "top_risks": [
+                {"risk": "unreviewed_output", "people": 5},
+                {"risk": "confidential_data_shared", "people": FEWER},
+                {"risk": "customer_data_shared", "people": FEWER},
+                {"risk": "policy_unaware", "people": FEWER},
+            ],
+            "awaiting_review": FEWER,
+        },
     }
 
 
-def test_maturity_thresholds():
-    assert maturity_level(None) == "Not assessed"
-    assert maturity_level(1.99) == "Beginner"
-    assert maturity_level(2.0) == "Exploring"
-    assert maturity_level(3.0) == "Practitioner"
-    assert maturity_level(4.0) == "Leader"
+def test_bluepeak_dashboard_hides_everything(client):
+    data = dashboard(client, "ravi@consult.test", "Bluepeak Retail")
+    assert data["groups"] == [{"name": "Other teams", "privacy": "hidden", "teams_hidden": 3,
+                               "message": "3 teams hidden to protect anonymity"}]
+    assert data["overall"]["privacy"] == "hidden"
+    assert subtraction_attack(data) is None
 
 
-def test_report_and_dashboard_agree_on_level(client):
-    # Priya averages 2.5 and is the only Support respondent, so both views must say the same level.
-    headers, _ = login(client, "priya@northwind.test", "Northwind Logistics")
-    report = client.get("/reports/me", headers=headers).json()
-    support = rows_by_name(dashboard(client, "asha@northwind.test", "Northwind Logistics"))["Support"]
-    assert report["average_score"] == support["average_score"] == 2.5
-    assert report["level"] == support["level"]
+def test_respondent_means_at_least_one_saved_answer(client):
+    # Farah (Sales) has no answers: she counts as an employee but not a respondent.
+    sales = northwind(client)["groups"][0]
+    assert (sales["employees"], sales["respondents"]) == (6, 5)
 
 
-def test_tied_risks_are_listed_alphabetically(client):
-    # Kabir has both flags once each; ties must not come out in random set order.
-    data = dashboard(client, "meera@bluepeak.test", "Bluepeak Retail")
-    assert data["top_risks"] == [["confidential_data_shared", 1], ["customer_data_shared", 1]]
+def test_hidden_remainder_hides_the_overall_figure(client):
+    # Without HR's answers, Other teams is Engineering's 3 people: too small, so it and the overall go.
+    remove_answers("imran@northwind.test", "Northwind Logistics")
+    remove_answers("ravi@consult.test", "Northwind Logistics")
+    data = northwind(client)
+    assert [g["privacy"] for g in data["groups"]] == ["shown", "shown", "hidden"]
+    assert data["overall"]["privacy"] == "hidden"
+    assert subtraction_attack(data) is None
+
+
+def test_attacker_finds_nobody_left_over_on_the_real_dashboard(client):
+    left_over, _ = subtraction_attack(northwind(client))
+    assert left_over == 0
+
+
+def test_response_only_contains_published_fields(client):
+    data = northwind(client)
+    assert set(data) == {"organization", "min_group_size", "groups", "overall"}
+    for g in data["groups"]:
+        assert set(g) <= {"name", "privacy", "teams", "teams_hidden", "message",
+                          "employees", "respondents", "average_score", "level"}
+
+
+def test_seed_prints_a_summary(capsys):
+    from app import seed
+    seed.run()
+    out = capsys.readouterr().out
+    assert "Northwind Logistics: Sales 5, Support 6, Engineering 3, HR 2, Unassigned 0" in out
+    assert "Bluepeak Retail: Stores 1, Customer Care 1, Unassigned 1" in out

@@ -15,3 +15,17 @@ def maturity_level(avg_score):
     if avg_score < 4:
         return "Practitioner"
     return "Leader"
+
+
+def person_summary(rows):
+    """One person's saved answers -> their average, risk flags and number of answers awaiting review.
+
+    Answers awaiting review count as answered but never towards the average or the flags.
+    """
+    trusted = [r for r in rows if r.status != "needs_review"]
+    scores = [r.score for r in trusted if r.score is not None]
+    return {
+        "average": sum(scores) / len(scores) if scores else None,
+        "flags": sorted({f for r in trusted for f in (r.flags or [])}),
+        "awaiting_review": len(rows) - len(trusted),
+    }
