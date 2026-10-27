@@ -2,6 +2,21 @@
 
 [![CI](https://github.com/anilgehlotn/ai-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/anilgehlotn/ai-pulse/actions/workflows/ci.yml)
 
+## Live demo
+
+- **Demo:** https://ai-pulse-lqmd.onrender.com
+- **API health:** https://ai-pulse-api-9jjz.onrender.com/health
+
+Sign in with any [demo account](#demo-accounts), password `pulse123`. Try:
+
+- `asha@northwind.test`: the leadership dashboard.
+- `ravi@consult.test`, then **Bluepeak Retail**: every team is too small, so no numbers are shown.
+- `rohan@northwind.test`: an employee report in the Exposed quadrant.
+
+It runs on Render's free plan. The API sleeps when idle, so the first sign-in can take up to a minute, and the demo
+data resets whenever the API restarts. AI scoring runs in mock mode on the demo; to score with a real model, run it
+locally with Ollama (see [Can the AI parts be trusted?](#can-the-ai-parts-be-trusted)).
+
 AI Pulse measures how well a company's people use AI at work. Employees take a short diagnostic that adapts to their
 role and seniority and get a personal report. Leadership sees team-level results, with a privacy rule that stops any
 individual from being identified.
@@ -137,7 +152,7 @@ The first fixes are single commits from before I started using pull requests. Th
   The data model already stores the reason and the model's original score for a reviewer.
 - **Snapshot leak over time.** Described in #10: comparing two saved dashboards before and after a known person
   submits or deletes reveals that person's average. The fix is a product and legal choice, so I asked Northwind first
-  (see below). <!-- TODO: file this as its own issue and link it here. -->
+  (see below). See #14.
 - **Postgres.** SQLite on a volume is enough for a pilot. The code goes through SQLAlchemy and reads `DATABASE_URL`;
   the one SQLite-specific line is the `check_same_thread` connect argument in `db.py`.
 - **SSO.** Northwind didn't ask for it, and it depends on their identity provider.
@@ -367,27 +382,28 @@ In mock mode the eval only gates on injections, because some canned replies are 
 
 ## How I used AI tools
 
-<!-- TODO: rewrite in my own words -->
+I used three AI tools, each for a different job.
 
-*Draft.*
+- **Claude (chat)** to plan the work, decide priorities and write the prompts for the coding agent.
+- **Claude Code in VS Code** to write most of the code and tests. I set the rules: write the test first, never run
+  git, and explain every change.
+- **Claude in Chrome** to create the GitHub issues and set up the Render deployment.
 
-I used Claude (chat) to plan the work, decide what to fix first and write the prompts I gave to the coding agent. I
-used Claude Code in VS Code for most of the implementation and tests, under rules I set: write the test first and show
-it failing, never run git commands that change state, never read `.env`, and explain every change. I used Claude in
-Chrome to create the GitHub issues. I reviewed every diff, ran the app myself and wrote all the commits and PRs.
+I reviewed every diff and ran the app myself after each step. I wrote and made every commit and PR myself.
 
-Places where the AI got it wrong, and what I did:
+The AI got things wrong. Three real examples:
 
-- **The prompt change looked like a big win and wasn't.** On the dev set, flag precision went from 36% to 86%. The
-  holdout set showed it had overfit: recall halved and a reworded injection scored 5. I stopped tuning, kept the
-  holdout wording out of the prompt and the phrase list, and added a check that doesn't depend on wording (the MCQ
-  consistency check).
-- **A UI note claimed more privacy than the code gives.** The drafted note under the open question said names are
-  removed before scoring. The backend only redacts emails and phone numbers. It was caught before merge, and the note
-  now says what actually happens and asks people to leave names out.
-- **The eval failed CI by design.** As first written, the eval gated on parse rate in mock mode, but some canned mock
-  replies are broken on purpose to exercise the parser, so it could never pass. I changed it so mock mode gates only
-  on injections and live mode keeps both gates.
+1. **A prompt change that looked better than it was.** The first change to the scoring prompt looked like a big win on
+   the dev set: flag precision went from 36% to 86%. The holdout set showed it had overfit. Recall halved, and a
+   reworded injection scored 5. I stopped tuning, didn't copy holdout wording into the prompt, and added the MCQ
+   consistency check instead.
+2. **A privacy note that wasn't true.** The note drafted for the open question in the UI said names are removed
+   before scoring. The backend only removes emails and phone numbers. I caught it before merge and corrected the note.
+3. **An eval that could never pass in CI.** As first written, the eval command always failed in mock mode, because
+   some mock responses are broken on purpose. That would have made CI permanently red. Now, in mock mode, it only
+   fails on missed injections.
+
+The main thing I learned: trust the test set I didn't tune on, not the numbers that look good.
 
 ## Known limitations
 
