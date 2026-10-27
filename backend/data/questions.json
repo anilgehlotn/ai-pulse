@@ -2,6 +2,7 @@
   {
     "id": "common-freq",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "all"
     ],
@@ -32,6 +33,7 @@
   {
     "id": "common-policy",
     "type": "mcq",
+    "dimension": "safety",
     "roles": [
       "all"
     ],
@@ -62,6 +64,7 @@
   {
     "id": "common-data",
     "type": "mcq",
+    "dimension": "safety",
     "roles": [
       "all"
     ],
@@ -92,6 +95,7 @@
   {
     "id": "common-review",
     "type": "mcq",
+    "dimension": "safety",
     "roles": [
       "all"
     ],
@@ -130,6 +134,7 @@
   {
     "id": "sup-drafts",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "support"
     ],
@@ -161,6 +166,7 @@
   {
     "id": "sup-escalation",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "support"
     ],
@@ -192,6 +198,7 @@
   {
     "id": "eng-assistant",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "engineering"
     ],
@@ -223,6 +230,7 @@
   {
     "id": "eng-review",
     "type": "mcq",
+    "dimension": "safety",
     "roles": [
       "engineering"
     ],
@@ -254,6 +262,7 @@
   {
     "id": "eng-arch",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "engineering"
     ],
@@ -285,6 +294,7 @@
   {
     "id": "sales-outreach",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "sales"
     ],
@@ -316,6 +326,7 @@
   {
     "id": "sales-crm",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "sales"
     ],
@@ -347,6 +358,7 @@
   {
     "id": "mgr-adoption",
     "type": "mcq",
+    "dimension": "adoption",
     "roles": [
       "manager"
     ],
@@ -378,6 +390,7 @@
   {
     "id": "mgr-policy",
     "type": "mcq",
+    "dimension": "safety",
     "roles": [
       "manager"
     ],
