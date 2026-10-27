@@ -10,15 +10,20 @@ The rule, for a minimum group size K (MIN_GROUP_SIZE, default 5):
      so there is no "total minus team" subtraction to make.
   f. Any risk count below K is shown as "fewer than K", including 0, so one person
      joining or leaving never moves a small count.
+  g. Adoption and safety are shown per shown/merged group only, never overall, and only when at
+     least K people in the group have that score. People per quadrant are never counted.
+     "act_first" lists the published groups in the "Exposed" quadrant, so it never names a hidden one.
 
 A respondent is a member with at least one saved answer. Each respondent is a dict:
-  {"average": float | None, "flags": [...], "awaiting_review": int}
+  {"average": float | None, "flags": [...], "awaiting_review": int,
+   "adoption": float | None, "safety": float | None}
 """
 from collections import Counter
 
 from .config import MIN_GROUP_SIZE
 from .services.llm import ALLOWED_FLAGS
-from .utils import maturity_level
+from .services.profile import quadrant
+from .utils import maturity_level, rounded
 
 OTHER_TEAMS = "Other teams"
 HIDDEN_OVERALL_REASON = (
@@ -43,6 +48,32 @@ def summarise(respondents):
     }
 
 
+def adoption_and_safety(respondents, min_size: int = MIN_GROUP_SIZE):
+    """Group averages of the respondents' adoption and safety scores, and the group's quadrant.
+
+    A dimension only a few people answered stays None: with 5 respondents but one safety score,
+    the "group" safety figure would be that one person's.
+    """
+    result = {}
+    for dimension in ("adoption", "safety"):
+        values = [r[dimension] for r in respondents if r[dimension] is not None]
+        result[dimension] = rounded(sum(values) / len(values)) if len(values) >= min_size else None
+    result["quadrant"] = quadrant(result["adoption"], result["safety"])
+    return result
+
+
+def act_first(published):
+    """Published groups that use AI a lot without the safeguards, biggest gap first."""
+    exposed = [g for g in published if g.get("quadrant") == "Exposed"]
+    exposed.sort(key=lambda g: g["adoption"] - g["safety"], reverse=True)
+    return [
+        {"name": g["name"], "adoption": g["adoption"], "safety": g["safety"],
+         "gap": rounded(g["adoption"] - g["safety"]),
+         "reason": f"Uses AI often ({g['adoption']}) but safety habits are low ({g['safety']})"}
+        for g in exposed
+    ]
+
+
 def top_risks(respondents, min_size: int = MIN_GROUP_SIZE):
     """Every allowed risk with how many people have it. set() so a person counts once per risk."""
     counts = Counter(flag for r in respondents for flag in set(r["flags"]))
@@ -63,7 +94,8 @@ def publish_groups(groups, min_size: int = MIN_GROUP_SIZE):
 
     # (a) Teams big enough to show on their own.
     published = [
-        {"name": g["name"], "privacy": "shown", "employees": g["employees"], **summarise(g["respondents"])}
+        {"name": g["name"], "privacy": "shown", "employees": g["employees"], **summarise(g["respondents"]),
+         **adoption_and_safety(g["respondents"], min_size)}
         for g in big
     ]
     visible = [r for g in big for r in g["respondents"]]
@@ -76,6 +108,7 @@ def publish_groups(groups, min_size: int = MIN_GROUP_SIZE):
             published.append({
                 "name": OTHER_TEAMS, "privacy": "merged", "teams": [g["name"] for g in small],
                 "employees": sum(g["employees"] for g in small), **summarise(merged),
+                **adoption_and_safety(merged, min_size),
             })
             visible += merged
         else:
@@ -96,4 +129,5 @@ def publish_groups(groups, min_size: int = MIN_GROUP_SIZE):
             "top_risks": top_risks(visible, min_size),
             "awaiting_review": band(sum(r["awaiting_review"] for r in visible), min_size),
         }
-    return {"groups": published, "overall": overall}
+    # (g) Built from the published groups only, so a hidden group can never appear in it.
+    return {"groups": published, "act_first": act_first(published), "overall": overall}

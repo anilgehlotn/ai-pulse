@@ -66,7 +66,8 @@ def test_report_is_empty_but_account_and_membership_remain(client):
 def test_deletion_shows_on_the_dashboard_immediately(client):
     before = northwind(client)
     assert before["groups"][0] == {"name": "Sales", "privacy": "shown", "employees": 6, "respondents": 5,
-                                   "average_score": 3.2, "level": "Practitioner"}
+                                   "average_score": 2.78, "level": "Exploring",
+                                   "adoption": 3.2, "safety": 2.2, "quadrant": "Exposed"}
 
     headers, _ = login(client, "neha@northwind.test")
     delete_my_data(client, headers)

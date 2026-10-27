@@ -16,8 +16,9 @@ from app.utils import maturity_level
 K = 5  # the default MIN_GROUP_SIZE
 
 
-def person(average=3.0, flags=(), awaiting_review=0):
-    return {"average": average, "flags": list(flags), "awaiting_review": awaiting_review}
+def person(average=3.0, flags=(), awaiting_review=0, adoption=None, safety=None):
+    return {"average": average, "flags": list(flags), "awaiting_review": awaiting_review,
+            "adoption": adoption, "safety": safety}
 
 
 def group(name, respondents, employees=None):
@@ -39,7 +40,7 @@ def test_group_with_enough_respondents_is_shown():
     published = publish_groups([group("Sales", [person(2), person(3), person(4), person(4), person(2)], employees=7)])
     assert by_name(published)["Sales"] == {
         "name": "Sales", "privacy": "shown", "employees": 7, "respondents": 5,
-        "average_score": 3.0, "level": "Practitioner",
+        "average_score": 3.0, "level": "Practitioner", "adoption": None, "safety": None, "quadrant": None,
     }
 
 
@@ -66,6 +67,7 @@ def test_small_groups_are_merged_into_other_teams():
     assert by_name(published)[OTHER_TEAMS] == {
         "name": OTHER_TEAMS, "privacy": "merged", "teams": ["Engineering", "HR", "Unassigned"],
         "employees": 7, "respondents": 5, "average_score": 3.0, "level": "Practitioner",
+        "adoption": None, "safety": None, "quadrant": None,
     }
     assert set(by_name(published)) == {"Sales", OTHER_TEAMS}
 
@@ -211,7 +213,9 @@ def with_hidden_answers_changed(groups, min_size=K):
     for g in changed:
         if len(g["respondents"]) < min_size:
             g["respondents"] = [person(average=5.0 if r["average"] != 5.0 else 1.0, flags=list(ALLOWED_FLAGS),
-                                       awaiting_review=r["awaiting_review"] + 1) for r in g["respondents"]]
+                                       awaiting_review=r["awaiting_review"] + 1,
+                                       adoption=5.0 if r["adoption"] != 5.0 else 1.0,
+                                       safety=1.0 if r["safety"] != 1.0 else 5.0) for r in g["respondents"]]
     return changed
 
 
@@ -233,6 +237,11 @@ def assert_no_leak(groups, min_size=K):
             assert set(g) == {"name", "privacy", "teams_hidden", "message"}
         else:
             assert g["respondents"] >= min_size
+    # 5. Adoption and safety are per published group only: no overall figure to subtract them from,
+    #    and act_first only names published groups.
+    assert not {"adoption", "safety", "quadrant"} & set(published["overall"])
+    published_names = {g["name"] for g in published["groups"] if g["privacy"] in ("shown", "merged")}
+    assert {row["name"] for row in published["act_first"]} <= published_names
     overall = published["overall"]
     if overall["privacy"] == "shown":
         assert overall["respondents"] == 0 or overall["respondents"] >= min_size
@@ -290,7 +299,9 @@ def random_org(rng):
         respondents = [
             person(average=None if rng.random() < 0.05 else round(rng.uniform(1, 5), 2),
                    flags=rng.sample(ALLOWED_FLAGS, rng.randint(0, 2)),
-                   awaiting_review=rng.randint(0, 1))
+                   awaiting_review=rng.randint(0, 1),
+                   adoption=None if rng.random() < 0.1 else round(rng.uniform(1, 5), 2),
+                   safety=None if rng.random() < 0.1 else round(rng.uniform(1, 5), 2))
             for _ in range(rng.randint(0, 12))
         ]
         groups.append(group(f"Dept {d}", respondents, employees=len(respondents) + rng.randint(0, 3)))
@@ -302,3 +313,62 @@ def test_invariants_hold_for_200_random_orgs(min_size):
     rng = random.Random(20261028)
     for _ in range(200):
         assert_no_leak(random_org(rng), min_size)
+
+
+# ---------- adoption vs safety per group ----------
+
+def test_group_adoption_and_safety_are_averages_of_its_respondents():
+    # adoption (4 + 4 + 3 + 3 + 2) / 5 = 3.2, safety (2 + 2 + 3 + 1 + 3) / 5 = 2.2
+    people = [person(adoption=a, safety=s) for a, s in [(4, 2), (4, 2), (3, 3), (3, 1), (2, 3)]]
+    sales = by_name(publish_groups([group("Sales", people)]))["Sales"]
+    assert (sales["adoption"], sales["safety"], sales["quadrant"]) == (3.2, 2.2, "Exposed")
+
+
+def test_merged_group_gets_adoption_and_safety_too():
+    published = publish_groups([group("Sales", [person(adoption=4, safety=4)] * 5),
+                                group("Eng", [person(adoption=2, safety=4)] * 3),
+                                group("HR", [person(adoption=1, safety=3)] * 2)])
+    other = by_name(published)[OTHER_TEAMS]
+    # adoption (2 * 3 + 1 * 2) / 5 = 1.6, safety (4 * 3 + 3 * 2) / 5 = 3.6
+    assert (other["adoption"], other["safety"], other["quadrant"]) == (1.6, 3.6, "Cautious")
+
+
+def test_hidden_group_gets_no_adoption_or_safety():
+    published = publish_groups([group("Sales", [person(adoption=4, safety=4)] * 5),
+                                group("HR", [person(adoption=5, safety=1)] * 2)])
+    assert set(by_name(published)[OTHER_TEAMS]) == {"name", "privacy", "teams_hidden", "message"}
+
+
+def test_attacker_cannot_read_one_persons_safety_from_a_shown_group():
+    # 5 respondents, but only one of them answered the safety questions: a "group" safety
+    # figure would be exactly that person's score, so it is not published.
+    people = [person(adoption=4, safety=1.0)] + [person(adoption=4)] * 4
+    sales = by_name(assert_no_leak([group("Sales", people)]))["Sales"]
+    assert (sales["adoption"], sales["safety"], sales["quadrant"]) == (4.0, None, None)
+
+
+def test_act_first_lists_exposed_groups_biggest_gap_first():
+    published = publish_groups([
+        group("Sales", [person(adoption=3.8, safety=2.2)] * 5),     # Exposed, gap 1.6
+        group("Support", [person(adoption=4.5, safety=1.5)] * 6),   # Exposed, gap 3.0
+        group("Ops", [person(adoption=4, safety=4)] * 5),           # Leading: not listed
+        group("Legal", [person(adoption=1, safety=4)] * 5),         # Cautious: not listed
+    ])
+    assert published["act_first"] == [
+        {"name": "Support", "adoption": 4.5, "safety": 1.5, "gap": 3.0,
+         "reason": "Uses AI often (4.5) but safety habits are low (1.5)"},
+        {"name": "Sales", "adoption": 3.8, "safety": 2.2, "gap": 1.6,
+         "reason": "Uses AI often (3.8) but safety habits are low (2.2)"},
+    ]
+
+
+def test_act_first_is_empty_when_no_group_is_exposed():
+    assert publish_groups([group("Sales", [person(adoption=4, safety=4)] * 5)])["act_first"] == []
+
+
+def test_act_first_never_mentions_hidden_groups():
+    # HR is the riskiest pattern possible, but it is hidden, so it cannot appear anywhere.
+    published = assert_no_leak([group("Sales", [person(adoption=4, safety=2)] * 5),
+                                group("HR", [person(adoption=5, safety=1)] * 2)])
+    assert published["overall"]["privacy"] == "hidden"
+    assert [row["name"] for row in published["act_first"]] == ["Sales"]  # shown groups still listed

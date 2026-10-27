@@ -1,12 +1,21 @@
 """/dashboard on the demo seed. Expected values worked out by hand from app/seed.py.
 
-Northwind respondents (each person's own average):
-  Sales:       Vikram 4.0, Neha 2, Rohan 3, Anita 5, Karan 2      -> 5 respondents, 16 / 5 = 3.2
+Northwind respondents (each person's own average; adoption / safety in brackets):
+  Sales:       Vikram (4 + 4 + 2) / 3 = 3.33 [4 / 2]
+               Neha (2 + 2 + 1 + 1 + 1 + open 2) / 6 = 1.5 [2 / 1]
+               Rohan (3 + 3 + 3 + 2 + 2 + 2 + open 3) / 7 = 2.57 [3 / 2]
+               Anita 5 [5 / 5], Karan 1.5 [2 / 1] (same questions as Neha)
+               -> 5 respondents, 13.90 / 5 = 2.78
                (Farah has not answered; 6 employees)
+               adoption (4 + 2 + 3 + 5 + 2) / 5 = 3.2, safety (2 + 1 + 2 + 5 + 1) / 5 = 2.2 -> Exposed
   Support:     Priya 2.5, Arjun 4, Kavitha 3, Lakshmi 3, Nikhil 2, Tara 4 -> 6, 18.5 / 6 = 3.08
+               adoption (Priya 2 + 4 + 3 + 3 + 2 + 4) / 6 = 3.0,
+               safety (Priya has none: 4 + 3 + 3 + 2 + 4) / 5 = 3.2 -> Leading
   Engineering: Dev 4, Sara 3, Omar 2 -> 3      HR: Imran 2, Ravi 3 -> 2      Unassigned: Asha, no answers
   Other teams = Engineering + HR + Unassigned -> 5 respondents, (9 + 5) / 5 = 2.8, 6 employees
-  Overall: 16 respondents, (16 + 18.5 + 14) / 16 = 3.03
+               adoption = safety = 2.8 (everyone answered both at their level) -> Getting started
+  Overall: 16 respondents, (13.90 + 18.5 + 14) / 16 = 2.90
+  act_first: Sales only, gap 3.2 - 2.2 = 1.0.
   unreviewed_output: Neha, Rohan, Karan, Nikhil, Omar = 5. customer_data_shared: Priya, Kavitha, Lakshmi = 3.
   policy_unaware: Imran = 1. confidential_data_shared: nobody in Northwind.
 Bluepeak respondents: Tom (Stores), Kabir (Customer Care), Ravi (Unassigned) -> 3 in total, all hidden.
@@ -49,14 +58,21 @@ def test_northwind_dashboard(client):
         "min_group_size": 5,
         "groups": [
             {"name": "Sales", "privacy": "shown", "employees": 6, "respondents": 5,
-             "average_score": 3.2, "level": "Practitioner"},
+             "average_score": 2.78, "level": "Exploring",
+             "adoption": 3.2, "safety": 2.2, "quadrant": "Exposed"},
             {"name": "Support", "privacy": "shown", "employees": 6, "respondents": 6,
-             "average_score": 3.08, "level": "Practitioner"},
+             "average_score": 3.08, "level": "Practitioner",
+             "adoption": 3.0, "safety": 3.2, "quadrant": "Leading"},
             {"name": "Other teams", "privacy": "merged", "teams": ["Engineering", "HR", "Unassigned"],
-             "employees": 6, "respondents": 5, "average_score": 2.8, "level": "Exploring"},
+             "employees": 6, "respondents": 5, "average_score": 2.8, "level": "Exploring",
+             "adoption": 2.8, "safety": 2.8, "quadrant": "Getting started"},
+        ],
+        "act_first": [
+            {"name": "Sales", "adoption": 3.2, "safety": 2.2, "gap": 1.0,
+             "reason": "Uses AI often (3.2) but safety habits are low (2.2)"},
         ],
         "overall": {
-            "privacy": "shown", "respondents": 16, "average_score": 3.03, "level": "Practitioner",
+            "privacy": "shown", "respondents": 16, "average_score": 2.9, "level": "Exploring",
             "top_risks": [
                 {"risk": "unreviewed_output", "people": 5},
                 {"risk": "confidential_data_shared", "people": FEWER},
@@ -73,6 +89,7 @@ def test_bluepeak_dashboard_hides_everything(client):
     assert data["groups"] == [{"name": "Other teams", "privacy": "hidden", "teams_hidden": 3,
                                "message": "3 teams hidden to protect anonymity"}]
     assert data["overall"]["privacy"] == "hidden"
+    assert data["act_first"] == []
     assert subtraction_attack(data) is None
 
 
@@ -99,10 +116,33 @@ def test_attacker_finds_nobody_left_over_on_the_real_dashboard(client):
 
 def test_response_only_contains_published_fields(client):
     data = northwind(client)
-    assert set(data) == {"organization", "min_group_size", "groups", "overall"}
+    assert set(data) == {"organization", "min_group_size", "groups", "act_first", "overall"}
     for g in data["groups"]:
         assert set(g) <= {"name", "privacy", "teams", "teams_hidden", "message",
-                          "employees", "respondents", "average_score", "level"}
+                          "employees", "respondents", "average_score", "level",
+                          "adoption", "safety", "quadrant"}
+    for row in data["act_first"]:
+        assert set(row) == {"name", "adoption", "safety", "gap", "reason"}
+
+
+QUADRANTS = {"Leading", "Exposed", "Cautious", "Getting started"}
+
+
+def all_keys(value):
+    """Every dictionary key anywhere in a JSON value."""
+    if isinstance(value, dict):
+        return set(value) | {k for v in value.values() for k in all_keys(v)}
+    if isinstance(value, list):
+        return {k for v in value for k in all_keys(v)}
+    return set()
+
+
+def test_no_counts_of_people_per_quadrant(client):
+    # A quadrant only ever appears as a group's label, never as a key with a number of people.
+    for data in (northwind(client), dashboard(client, "ravi@consult.test", "Bluepeak Retail")):
+        keys = all_keys(data)
+        assert not keys & QUADRANTS
+        assert not {k for k in keys if "quadrant" in k.lower() and k != "quadrant"}
 
 
 def test_seed_prints_a_summary(capsys):

@@ -38,8 +38,8 @@ PEOPLE_BLUEPEAK = [
 ]
 
 # People who completed the whole diagnostic. Every MCQ is answered with the option worth `level`
-# points and every open answer is scored `level`, so each person's average is exactly `level`.
-# The flags go on their open answers.
+# points and every open answer is scored `level`, so each person's average is exactly `level`,
+# unless they are in SAFETY_LEVELS below. The flags go on their open answers.
 FULL_DIAGNOSTICS = [
     # email, organization, level, open answer, flags
     ("neha@northwind.test", "Northwind Logistics", 2, "I paste call notes into ChatGPT and send the summary to customers without reading it.", ["unreviewed_output"]),
@@ -58,6 +58,15 @@ FULL_DIAGNOSTICS = [
     ("ravi@consult.test", "Northwind Logistics", 3, "I use AI to draft workshop agendas and edit them before sharing.", []),
     ("ravi@consult.test", "Bluepeak Retail", 3, "I summarise store visit notes with AI and check the figures myself.", []),
 ]
+
+# These people use AI as much as their level says but skip the safeguards: their safety MCQs
+# get these points instead. Together with Vikram's skimmed review below, this puts Sales in
+# the "Exposed" quadrant (adoption 3.2, safety 2.2) while Support stays "Leading".
+SAFETY_LEVELS = {
+    "neha@northwind.test": 1,
+    "rohan@northwind.test": 2,
+    "karan@northwind.test": 1,
+}
 
 
 def print_summary(db, orgs):
@@ -127,6 +136,7 @@ def run():
 
     answer("vikram@northwind.test", nw, "common-freq", "Daily", 4)
     answer("vikram@northwind.test", nw, "common-open", "Used ChatGPT to draft 20 follow-up emails and edited each one.", 4, "Regular use with editing.", [])
+    answer("vikram@northwind.test", nw, "common-review", "Skim it", 2)
     answer("priya@northwind.test", nw, "common-freq", "A few times a month", 2)
     answer("priya@northwind.test", nw, "common-open", "Pasted a customer's complaint thread into ChatGPT to summarise it.", 3, "Useful summary but shared customer data.", ["customer_data_shared"])
     answer("tom@bluepeak.test", bp, "common-freq", "A few times a week", 3)
@@ -139,8 +149,9 @@ def run():
         m = db.query(models.Membership).filter_by(user_id=users[email].id, org_id=org.id).first()
         for q in questions_for(m.job_role, m.seniority):
             if q["type"] == "mcq":
-                option = next(o for o in q["options"] if o["points"] == level)
-                answer(email, org, q["id"], option["text"], level)
+                points = SAFETY_LEVELS.get(email, level) if q["dimension"] == "safety" else level
+                option = next(o for o in q["options"] if o["points"] == points)
+                answer(email, org, q["id"], option["text"], points)
             else:
                 answer(email, org, q["id"], open_text, level, f"Seeded at level {level}.", flags)
 
