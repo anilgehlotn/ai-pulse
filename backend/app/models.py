@@ -12,7 +12,7 @@ class Organization(Base):
     __tablename__ = "organizations"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
-    departments = relationship("Department", back_populates="org")
+    departments = relationship("Department", back_populates="org", order_by="Department.id")
 
 
 class Department(Base):
@@ -62,3 +62,14 @@ class Response(Base):
     # Which prompt/parser version scored an open answer, e.g. "open-v2". None for MCQs.
     scoring_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class DeletionEvent(Base):
+    """Compliance record that someone used their right to delete.
+
+    Deliberately has no user, email or organization column, so the log itself identifies nobody.
+    """
+    __tablename__ = "deletion_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    answers_deleted: Mapped[int] = mapped_column(Integer)
