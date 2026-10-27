@@ -1,7 +1,13 @@
 import os
+import tempfile
+
 import pytest
 
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+# Must run before the app is imported: the engine is created from DATABASE_URL at import time.
+# The directory and its database are deleted automatically when the test run ends.
+_test_db_dir = tempfile.TemporaryDirectory(prefix="aipulse-tests-")
+os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_test_db_dir.name, 'test.db')}"
+os.environ["APP_ENV"] = "test"
 os.environ["AI_MODE"] = "mock"
 
 from fastapi.testclient import TestClient  # noqa: E402
