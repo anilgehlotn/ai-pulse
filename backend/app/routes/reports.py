@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
-from ..utils import maturity_level, person_summary
+from ..services.profile import QUADRANT_EXPLANATIONS, SAFETY_TIPS, quadrant, weakest_safety_habit
+from ..utils import maturity_level, person_summary, rounded
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -21,6 +22,9 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
     rows = db.query(models.Response).filter_by(membership_id=m.id).all()
     summary = person_summary(rows)
     avg = summary["average"]
+    adoption, safety = rounded(summary["adoption"]), rounded(summary["safety"])
+    person_quadrant = quadrant(adoption, safety)
+    weakest = weakest_safety_habit(rows)
     return {
         "name": m.user.name,
         "organization": m.org.name,
@@ -30,4 +34,9 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "level": maturity_level(avg),
         "risks": summary["flags"],
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
+        "adoption": adoption,
+        "safety": safety,
+        "quadrant": person_quadrant,
+        "quadrant_explanation": QUADRANT_EXPLANATIONS[person_quadrant],
+        "focus_next": {"question_id": weakest, "tip": SAFETY_TIPS[weakest]} if weakest else None,
     }

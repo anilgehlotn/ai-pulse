@@ -1,6 +1,7 @@
 import pytest
 
-from app.services.questions import questions_for
+from app.services.profile import SAFETY_TIPS
+from app.services.questions import load_questions, questions_for
 
 
 def ids(qs):
@@ -43,3 +44,16 @@ def test_mid_engineer_gets_review_but_not_architecture():
 def test_unknown_seniority_raises():
     with pytest.raises(ValueError, match="Unknown seniority 'principal'"):
         questions_for("engineering", "principal")
+
+
+def test_every_mcq_is_tagged_adoption_or_safety():
+    for q in load_questions():
+        if q["type"] == "mcq":
+            assert q.get("dimension") in ("adoption", "safety"), f"{q['id']} has dimension {q.get('dimension')!r}"
+        else:
+            assert "dimension" not in q, f"open question {q['id']} must not have a dimension"
+
+
+def test_every_safety_question_has_a_tip():
+    safety = {q["id"] for q in load_questions() if q.get("dimension") == "safety"}
+    assert set(SAFETY_TIPS) == safety

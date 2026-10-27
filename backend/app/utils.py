@@ -1,3 +1,6 @@
+from .services.profile import dimension_scores
+
+
 def maturity_level(avg_score):
     """Turn an average on the 1-5 rubric into a level. The single scale for reports and the dashboard.
 
@@ -18,7 +21,8 @@ def maturity_level(avg_score):
 
 
 def person_summary(rows):
-    """One person's saved answers -> their average, risk flags and number of answers awaiting review.
+    """One person's saved answers -> their average, risk flags, number of answers awaiting review,
+    and their adoption and safety scores.
 
     Answers awaiting review count as answered but never towards the average or the flags.
     """
@@ -28,4 +32,9 @@ def person_summary(rows):
         "average": sum(scores) / len(scores) if scores else None,
         "flags": sorted({f for r in trusted for f in (r.flags or [])}),
         "awaiting_review": len(rows) - len(trusted),
+        **dimension_scores(trusted),
     }
+
+
+def rounded(value):
+    return round(value, 2) if value is not None else None
