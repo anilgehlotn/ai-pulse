@@ -1,21 +1,23 @@
 import React from "react";
-import { api, setToken } from "../api.js";
+import { ErrorBox, Loading } from "../components/Status.jsx";
 
-export default function OrgPicker({ orgs, onPick }) {
-  async function pick(o) {
-    const data = await api("/auth/select-org", { method: "POST", body: JSON.stringify({ org_id: o.org_id }) });
-    setToken(data.token);
-    onPick(o);
-  }
-
+export default function OrgPicker({ organizations, busy, error, onPick }) {
   return (
-    <div className="card">
-      <h2>Choose an organization</h2>
-      {orgs.map((o) => (
-        <p key={o.org_id}>
-          <button onClick={() => pick(o)}>{o.org_name}</button> <small>({o.role})</small>
-        </p>
-      ))}
+    <div className="narrow card stack">
+      <h1>Choose an organization</h1>
+      <p className="muted">You belong to more than one. You can switch later from the top bar.</p>
+      <ul className="org-list">
+        {organizations.map((o) => (
+          <li key={o.org_id}>
+            <button type="button" className="org-button" disabled={busy} onClick={() => onPick(o)}>
+              <span>{o.org_name}</span>
+              <span className="muted small">{o.role === "admin" ? "Admin" : "Employee"}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {busy && <Loading what="Opening" />}
+      <ErrorBox message={error} />
     </div>
   );
 }
