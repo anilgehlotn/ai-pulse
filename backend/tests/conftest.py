@@ -9,6 +9,7 @@ _test_db_dir = tempfile.TemporaryDirectory(prefix="aipulse-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_test_db_dir.name, 'test.db')}"
 os.environ["APP_ENV"] = "test"
 os.environ["AI_MODE"] = "mock"
+os.environ["BCRYPT_ROUNDS"] = "4"  # minimum cost: real hashing, fast tests
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402

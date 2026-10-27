@@ -5,13 +5,13 @@ import jwt
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from .config import SECRET_KEY, TOKEN_HOURS
+from .config import BCRYPT_ROUNDS, SECRET_KEY, TOKEN_HOURS
 from .db import get_db
 from . import models
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 
 def verify_password(password: str, hashed: str) -> bool:
@@ -20,6 +20,11 @@ def verify_password(password: str, hashed: str) -> bool:
     except ValueError:
         # Not a bcrypt hash (e.g. an old SHA-256 row): treat as a failed login.
         return False
+
+
+# Checked against when the email is unknown, so a login takes the same time whether or not the
+# email is registered. Made with the same rounds as real hashes so the timing matches.
+DUMMY_PASSWORD_HASH = hash_password("dummy-password-never-matches")
 
 
 def make_token(user_id: int, org_id: int | None = None) -> str:

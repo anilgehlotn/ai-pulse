@@ -39,3 +39,5 @@ LLM_API_URL = os.getenv("LLM_API_URL", "")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 TOKEN_HOURS = 12
+# bcrypt cost factor. Each +1 doubles the work; tests lower it to stay fast.
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))

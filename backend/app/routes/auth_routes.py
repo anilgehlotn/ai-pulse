@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models
-from ..auth import verify_password, make_token, current_user
+from ..auth import DUMMY_PASSWORD_HASH, verify_password, make_token, current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -21,7 +21,9 @@ class SelectOrgIn(BaseModel):
 @router.post("/login")
 def login(body: LoginIn, db: Session = Depends(get_db)):
     user = db.query(models.User).filter_by(email=body.email).first()
-    if not user or not verify_password(body.password, user.password_hash):
+    # Always run one bcrypt check, even for unknown emails, so timing doesn't reveal who is registered.
+    password_ok = verify_password(body.password, user.password_hash if user else DUMMY_PASSWORD_HASH)
+    if not user or not password_ok:
         raise HTTPException(401, "Wrong email or password")
     orgs = [
         {"org_id": m.org_id, "org_name": m.org.name, "role": m.role}

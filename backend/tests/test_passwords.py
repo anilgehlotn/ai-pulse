@@ -1,4 +1,6 @@
-from app.auth import hash_password, verify_password
+from app.auth import DUMMY_PASSWORD_HASH, hash_password, verify_password
+from app.config import BCRYPT_ROUNDS
+from app.routes import auth_routes
 
 
 def test_hash_is_not_the_plain_password():
@@ -27,3 +29,22 @@ def test_login_fails_the_same_way_for_wrong_password_and_unknown_email(client):
     unknown_email = client.post("/auth/login", json={"email": "nobody@northwind.test", "password": "pulse123"})
     assert wrong_password.status_code == unknown_email.status_code == 401
     assert wrong_password.json()["detail"] == unknown_email.json()["detail"]
+
+
+def test_unknown_email_still_runs_a_password_check(client, monkeypatch):
+    # Skipping bcrypt for unknown emails would make them answer faster and reveal who is registered.
+    checked = []
+
+    def spy(password, hashed):
+        checked.append(hashed)
+        return verify_password(password, hashed)
+
+    monkeypatch.setattr(auth_routes, "verify_password", spy)
+    r = client.post("/auth/login", json={"email": "nobody@northwind.test", "password": "pulse123"})
+    assert r.status_code == 401
+    assert checked == [DUMMY_PASSWORD_HASH]
+
+
+def test_tests_use_cheap_bcrypt_rounds():
+    assert BCRYPT_ROUNDS == 4
+    assert hash_password("pulse123").startswith("$2b$04$")
