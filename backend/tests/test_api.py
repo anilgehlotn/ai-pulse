@@ -26,7 +26,8 @@ def test_admin_dashboard(client):
     headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
     r = client.get("/dashboard", headers=headers)
     assert r.status_code == 200
-    assert len(r.json()["departments"]) == 4
+    # 4 departments plus "Unassigned" for Asha, who is an admin without a department
+    assert [d["department"] for d in r.json()["departments"]] == ["Sales", "Support", "Engineering", "HR", "Unassigned"]
 
 
 def test_admin_cannot_read_another_org_through_the_url(client):
@@ -42,7 +43,7 @@ def test_multi_org_admin_sees_only_the_org_in_the_token(client):
     r = client.get(f"/dashboard?org_id={NORTHWIND_ID}", headers=headers)
     assert r.status_code == 200
     assert r.json()["organization"] == "Bluepeak Retail"
-    assert {d["department"] for d in r.json()["departments"]} == {"Stores", "Customer Care"}
+    assert {d["department"] for d in r.json()["departments"]} == {"Stores", "Customer Care", "Unassigned"}
 
 
 def test_multi_org_user_is_employee_in_other_org(client):

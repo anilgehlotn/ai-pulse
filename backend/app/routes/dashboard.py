@@ -1,23 +1,28 @@
+from collections import Counter, defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
+from ..utils import maturity_level
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+UNASSIGNED = "Unassigned"
 
-def level_for(avg):
-    if avg is None:
-        return "Not assessed"
-    if avg < 1.5:
-        return "Beginner"
-    if avg < 2.5:
-        return "Exploring"
-    if avg < 3.5:
-        return "Practitioner"
-    return "Leader"
+
+def department_row(name, employees, respondent_averages):
+    """One dashboard row. Every respondent counts once, however many questions they answered."""
+    avg = sum(respondent_averages) / len(respondent_averages) if respondent_averages else None
+    return {
+        "department": name,
+        "employees": employees,
+        "responded": len(respondent_averages),
+        "average_score": round(avg, 2) if avg is not None else None,
+        "level": maturity_level(avg),
+    }
 
 
 @router.get("")
@@ -28,32 +33,39 @@ def org_dashboard(m: models.Membership = Depends(current_membership), db: Sessio
     # The organization always comes from the signed token, never from the request.
     org = m.org
     members = db.query(models.Membership).filter_by(org_id=org.id).all()
-    departments = []
-    all_flags = {}
-    for dept in org.departments:
-        dept_members = [x for x in members if x.department_id == dept.id]
-        scores = []
-        responded = 0
-        for dm in dept_members:
-            rows = db.query(models.Response).filter_by(membership_id=dm.id).all()
-            if rows:
-                responded += 1
-            for r in rows:
-                if r.score is not None:
-                    scores.append(r.score)
-                for f in r.flags or []:
-                    all_flags[f] = all_flags.get(f, 0) + 1
-        avg = sum(scores) / len(dept_members) if dept_members else None
-        departments.append({
-            "department": dept.name,
-            "employees": len(dept_members),
-            "responded": responded,
-            "average_score": round(avg, 2) if avg is not None else None,
-            "level": level_for(avg),
-        })
+
+    # All responses for the organization in one query, then grouped per person.
+    responses = (
+        db.query(models.Response)
+        .join(models.Membership, models.Response.membership_id == models.Membership.id)
+        .filter(models.Membership.org_id == org.id)
+        .all()
+    )
+    scores_by_member = defaultdict(list)
+    flags_by_member = defaultdict(set)
+    for r in responses:
+        if r.score is not None:
+            scores_by_member[r.membership_id].append(r.score)
+        flags_by_member[r.membership_id].update(r.flags or [])
+    average_by_member = {mid: sum(s) / len(s) for mid, s in scores_by_member.items()}
+
+    groups = [(dept.name, [x for x in members if x.department_id == dept.id]) for dept in org.departments]
+    unassigned = [x for x in members if x.department_id is None]
+    if unassigned:
+        groups.append((UNASSIGNED, unassigned))
+
+    departments = [
+        department_row(name, len(people), [average_by_member[p.id] for p in people if p.id in average_by_member])
+        for name, people in groups
+    ]
+
+    # A set per person, so someone flagged in two answers counts once.
+    risk_counts = Counter(flag for flags in flags_by_member.values() for flag in flags)
+    # Most people first; ties alphabetically so the order is the same on every request.
+    top_risks = sorted(risk_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
 
     return {
         "organization": org.name,
         "departments": departments,
-        "top_risks": sorted(all_flags.items(), key=lambda kv: -kv[1])[:5],
+        "top_risks": top_risks,
     }
