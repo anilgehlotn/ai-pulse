@@ -6,7 +6,7 @@ from ..db import get_db
 from .. import models
 from ..auth import current_membership
 from ..services.questions import questions_for
-from ..services.scoring import score_open_answer
+from ..services.scoring import SCORING_VERSION, score_open_answer
 
 router = APIRouter(prefix="/diagnostic", tags=["diagnostic"])
 
@@ -50,15 +50,19 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
                 raise HTTPException(400, f"Invalid option for {q['id']}")
             resp.answer = a.answer
             resp.score = option["points"]
+            resp.status = "mcq"
         else:
             text = a.answer.strip()
             if not text:
                 raise HTTPException(400, f"Answer for {q['id']} cannot be empty")
+            # Never raises: output the model got wrong comes back as status "needs_review".
             result = score_open_answer(q["text"], text)
             resp.answer = text
-            resp.score = result["score"]
-            resp.reason = result["reason"]
-            resp.flags = result["flags"]
+            resp.status = result.status
+            resp.score = result.score
+            resp.reason = result.reason
+            resp.flags = result.flags
+            resp.scoring_version = SCORING_VERSION
         new_rows.append(resp)
 
     # Replace the previous attempt: delete and insert in one transaction, so either both happen or neither.

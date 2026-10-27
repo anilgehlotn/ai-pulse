@@ -5,6 +5,7 @@ All passwords are: pulse123
 from .db import Base, engine, SessionLocal
 from . import models
 from .auth import hash_password
+from .services.questions import load_questions
 
 PEOPLE_NORTHWIND = [
     # name, email, department, role, job_role, seniority
@@ -74,9 +75,13 @@ def run():
     db.flush()
 
     # Some existing results so dashboards aren't empty
+    question_types = {q["id"]: q["type"] for q in load_questions()}
+
     def answer(email, org, qid, text, score, reason=None, flags=None):
         m = db.query(models.Membership).filter_by(user_id=users[email].id, org_id=org.id).first()
-        db.add(models.Response(membership_id=m.id, question_id=qid, answer=text, score=score, reason=reason, flags=flags or []))
+        status = "mcq" if question_types[qid] == "mcq" else "scored"
+        db.add(models.Response(membership_id=m.id, question_id=qid, answer=text, score=score, reason=reason,
+                               flags=flags or [], status=status, scoring_version=None if status == "mcq" else "seed"))
 
     answer("vikram@northwind.test", nw, "common-freq", "Daily", 4)
     answer("vikram@northwind.test", nw, "common-open", "Used ChatGPT to draft 20 follow-up emails and edited each one.", 4, "Regular use with editing.", [])

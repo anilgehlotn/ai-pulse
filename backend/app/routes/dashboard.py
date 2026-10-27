@@ -43,7 +43,11 @@ def org_dashboard(m: models.Membership = Depends(current_membership), db: Sessio
     )
     scores_by_member = defaultdict(list)
     flags_by_member = defaultdict(set)
+    awaiting_review = 0
     for r in responses:
+        if r.status == "needs_review":
+            awaiting_review += 1
+            continue
         if r.score is not None:
             scores_by_member[r.membership_id].append(r.score)
         flags_by_member[r.membership_id].update(r.flags or [])
@@ -68,4 +72,5 @@ def org_dashboard(m: models.Membership = Depends(current_membership), db: Sessio
         "organization": org.name,
         "departments": departments,
         "top_risks": top_risks,
+        "awaiting_review": awaiting_review,
     }

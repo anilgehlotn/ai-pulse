@@ -31,7 +31,8 @@ def add_response(email, org_name, question_id, score, flags):
         .filter(models.User.email == email, models.Organization.name == org_name)
         .one()
     )
-    db.add(models.Response(membership_id=m.id, question_id=question_id, answer="x", score=score, flags=flags))
+    db.add(models.Response(membership_id=m.id, question_id=question_id, answer="x", score=score, flags=flags,
+                            status="scored"))
     db.commit()
     db.close()
 

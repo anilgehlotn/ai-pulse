@@ -56,4 +56,9 @@ class Response(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     flags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # "mcq" (scored from the option), "scored" (open answer scored by the model)
+    # or "needs_review" (the model's output couldn't be trusted; score is None and reason says why)
+    status: Mapped[str] = mapped_column(String(20))
+    # Which prompt/parser version scored an open answer, e.g. "open-v2". None for MCQs.
+    scoring_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

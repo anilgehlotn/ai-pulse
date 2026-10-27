@@ -3,6 +3,7 @@ import pytest
 from app import models
 from app.db import SessionLocal
 from app.routes import diagnostic
+from app.services.scoring import ScoreResult
 from tests.conftest import login
 
 PRIYA = ("priya@northwind.test", "Northwind Logistics")  # support, junior; already has 2 seeded answers
@@ -12,7 +13,7 @@ PRIYA = ("priya@northwind.test", "Northwind Logistics")  # support, junior; alre
 def fixed_open_score(monkeypatch):
     """Score open answers with a fixed result so tests don't depend on the mock LLM."""
     monkeypatch.setattr(diagnostic, "score_open_answer",
-                        lambda question, answer: {"score": 3, "reason": "ok", "flags": []})
+                        lambda question, answer: ScoreResult(status="scored", score=3, reason="ok"))
 
 
 def full_answers(client, headers, mcq_choice=0):

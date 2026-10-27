@@ -19,13 +19,16 @@ NEXT_STEPS = {
 @router.get("/me")
 def my_report(m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
     rows = db.query(models.Response).filter_by(membership_id=m.id).all()
-    scores = [r.score for r in rows if r.score is not None]
+    # Answers awaiting review count as answered but not towards the score or the risks.
+    trusted = [r for r in rows if r.status != "needs_review"]
+    scores = [r.score for r in trusted if r.score is not None]
     avg = sum(scores) / len(scores) if scores else None
-    flags = sorted({f for r in rows for f in (r.flags or [])})
+    flags = sorted({f for r in trusted for f in (r.flags or [])})
     return {
         "name": m.user.name,
         "organization": m.org.name,
         "answered": len(rows),
+        "awaiting_review": len(rows) - len(trusted),
         "average_score": round(avg, 2) if avg is not None else None,
         "level": maturity_level(avg),
         "risks": flags,
