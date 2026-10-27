@@ -1,23 +1,30 @@
 """Measure the open-answer scoring pipeline against hand-written cases.
 
-Run: python -m app.eval
-Uses whatever AI_MODE is configured. Exits non-zero if any model output fails to parse
-or any prompt injection gets through.
+Run: python -m app.eval [--set dev|holdout|all]
+  dev      data/eval_set.json, the cases used while working on the prompt (default)
+  holdout  data/eval_holdout.json, written separately and not used for tuning, to catch overfitting
+  all      both
+Uses whatever AI_MODE is configured. Exits non-zero if any prompt injection gets through, and in
+live mode also if any model output fails to parse.
 """
+import argparse
 import json
 import os
 import sys
 
 from .config import AI_MODE
 from .services.questions import load_questions
-from .services.scoring import score_open_answer
+from .services.scoring import SCORING_VERSION, score_open_answer
 
-_CASES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "eval_set.json")
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+CASE_FILES = {"dev": "eval_set.json", "holdout": "eval_holdout.json"}
 QUESTION_ID = "common-open"
 
 
-def load_cases():
-    with open(_CASES_PATH) as f:
+def load_cases(case_set="dev"):
+    if case_set == "all":
+        return load_cases("dev") + load_cases("holdout")
+    with open(os.path.join(_DATA_DIR, CASE_FILES[case_set])) as f:
         return json.load(f)
 
 
@@ -61,12 +68,13 @@ def summarise(rows):
         "injections_total": len(injections),
         "false_injection_alarms": sum(r["result"].reason == "possible_prompt_injection" for r in normal),
         "needs_review": sum(r["result"].status == "needs_review" for r in rows),
+        "capped_for_data_risk": sum("capped_for_data_risk" in r["result"].adjustments for r in rows),
     }
 
 
 def print_table(rows):
-    print(f"{'case':<28} {'status':<13} {'score':>5} {'expect':>6}  {'ok':<3} {'flags / reason'}")
-    print("-" * 100)
+    print(f"{'case':<30} {'status':<13} {'score':>5} {'expect':>6}  {'ok':<3} {'flags / reason'}")
+    print("-" * 102)
     for r in rows:
         case, result = r["case"], r["result"]
         low, high = case["expected_score_range"]
@@ -75,19 +83,25 @@ def print_table(rows):
         else:
             ok = "yes" if in_range(case, result) else "no"
         detail = (", ".join(result.flags) or "-") if result.status == "scored" else result.reason
+        if result.adjustments:
+            detail += f" [{', '.join(result.adjustments)}]"
         score = "-" if result.score is None else result.score
-        print(f"{case['id']:<28} {result.status:<13} {score:>5} {f'{low}-{high}':>6}  {ok:<3} {detail}")
+        print(f"{case['id']:<30} {result.status:<13} {score:>5} {f'{low}-{high}':>6}  {ok:<3} {detail}")
 
 
 def show(value):
     return "n/a" if value is None else f"{value}%"
 
 
-def main():
-    rows = run_cases(load_cases())
+def main(argv=()):
+    parser = argparse.ArgumentParser(prog="python -m app.eval")
+    parser.add_argument("--set", dest="case_set", choices=["dev", "holdout", "all"], default="dev")
+    args = parser.parse_args(list(argv))
+
+    rows = run_cases(load_cases(args.case_set))
     s = summarise(rows)
 
-    print(f"AI_MODE={AI_MODE}\n")
+    print(f"AI_MODE={AI_MODE} set={args.case_set} scoring_version={SCORING_VERSION}\n")
     print_table(rows)
     print()
     totals = [
@@ -99,6 +113,7 @@ def main():
         ("Injections caught", f"{s['injections_caught']}/{s['injections_total']}"),
         ("False injection alarms", s["false_injection_alarms"]),
         ("Needs review", f"{s['needs_review']}/{s['cases']}"),
+        ("Capped for data risk", s["capped_for_data_risk"]),
     ]
     for label, value in totals:
         print(f"{label + ':':<25} {value}")
@@ -121,4 +136,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
