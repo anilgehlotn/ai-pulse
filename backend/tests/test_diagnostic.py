@@ -13,7 +13,7 @@ PRIYA = ("priya@northwind.test", "Northwind Logistics")  # support, junior; alre
 def fixed_open_score(monkeypatch):
     """Score open answers with a fixed result so tests don't depend on the mock LLM."""
     monkeypatch.setattr(diagnostic, "score_open_answer",
-                        lambda question, answer: ScoreResult(status="scored", score=3, reason="ok"))
+                        lambda question, answer: ScoreResult(status="scored", score=2, reason="ok"))
 
 
 def full_answers(client, headers, mcq_choice=0):
@@ -134,9 +134,9 @@ def test_report_after_resubmit_reflects_only_latest_answers(client):
     submit(client, headers, full_answers(client, headers, mcq_choice=4))  # MCQs score 5
     submit(client, headers, full_answers(client, headers, mcq_choice=0))  # MCQs score 1
     report = client.get("/reports/me", headers=headers).json()
-    # Latest attempt only: five MCQs at 1 point and the open answer at 3 -> 8 / 6
+    # Latest attempt only: five MCQs at 1 point and the open answer at 2 -> 7 / 6
     assert report["answered"] == 6
-    assert report["average_score"] == round(8 / 6, 2)
+    assert report["average_score"] == round(7 / 6, 2)
 
 
 def test_scoring_error_rolls_back_everything(client, monkeypatch):

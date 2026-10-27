@@ -97,14 +97,15 @@ def test_pipeline_applies_the_cap(monkeypatch):
 
 
 def test_scoring_version_is_bumped():
-    assert scoring.SCORING_VERSION == "open-v3"
+    assert scoring.SCORING_VERSION == "open-v4"
 
 
 def test_adjustment_is_stored_on_the_response(client, monkeypatch):
     monkeypatch.setattr(llm, "score_answer", lambda q, a: '{"score": 4, "reason": "Good.", "flags": ["confidential_data_shared"]}')
     headers, _ = login(client, "priya@northwind.test", "Northwind Logistics")
     questions = client.get("/diagnostic/questions", headers=headers).json()
-    answers = [{"question_id": q["id"], "answer": q["options"][0] if q["type"] == "mcq" else "Used AI on our forecast."}
+    # MCQs worth 2 points, so the capped 3 is within the MCQ consistency gap.
+    answers = [{"question_id": q["id"], "answer": q["options"][1] if q["type"] == "mcq" else "Used AI on our forecast."}
                for q in questions]
     assert client.post("/diagnostic/submit", json={"answers": answers}, headers=headers).status_code == 200
 
@@ -113,7 +114,7 @@ def test_adjustment_is_stored_on_the_response(client, monkeypatch):
             .filter(models.User.email == "priya@northwind.test").all())
     db.close()
     open_row = next(r for r in rows if r.question_id == "common-open")
-    assert (open_row.score, open_row.adjustments, open_row.scoring_version) == (3, ["capped_for_data_risk"], "open-v3")
+    assert (open_row.score, open_row.adjustments, open_row.scoring_version) == (3, ["capped_for_data_risk"], "open-v4")
     assert all(r.adjustments is None for r in rows if r.status == "mcq")
 
 

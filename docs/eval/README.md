@@ -94,6 +94,30 @@ Net: open-v3 is better at *not* raising wrong flags and, thanks to the cap, safe
 is not yet reliable at *spotting* data sharing in new wording, and a reworded injection gets through. Because the
 holdout has now been looked at, the next prompt change needs a fresh holdout to be measured honestly.
 
+## Defence in depth
+
+No single layer is trusted on its own. An open answer passes through five in order:
+
+1. **Phrase list**: answers containing known injection phrases ("ignore previous", "system prompt", …) go to a human
+   and are never sent to the model. Cheap, but only catches wording we've already seen.
+2. **System prompt and tags**: the rules live in the system message, and the answer sits inside `<employee_answer>`
+   tags that it can't close. The model is told the content is data, not instructions.
+3. **Strict parser**: the reply must be a whole number from 1 to 5 with a reason and only known flags, or the answer
+   goes to review.
+4. **Data-risk cap**: a customer or confidential data flag caps the score at 3, whatever the model said.
+5. **MCQ consistency check** (`open-v4`): if the open-answer score is 2 or more points *above* the average of the same
+   person's MCQ answers in that submission, it isn't trusted. It is saved as `needs_review` with reason
+   `inconsistent_with_mcq`, and the model's score is kept in `adjustments` for the reviewer. Only an inflated score
+   triggers it, because that's what a successful injection produces.
+
+The idea for layer 5 came from the holdout failure above, where a reworded injection beat layers 1 and 2 and scored
+5. But the rule uses **no wording from that case or any other**. It compares numbers the person gave us, so
+rephrasing an attack doesn't get around it.
+
+**This eval does not measure layer 5.** The harness scores each open answer on its own, without MCQ answers, so the
+check never runs here and the numbers above are unaffected by it. It is covered by unit tests in
+`backend/tests/test_consistency.py`.
+
 ## Honest limits
 
 - **Tiny sets.** 12 + 9 scored cases. One case moves "score in range" by 8–11 points. Treat these as smoke tests, not

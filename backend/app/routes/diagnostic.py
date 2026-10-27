@@ -6,7 +6,7 @@ from ..db import get_db
 from .. import models
 from ..auth import current_membership
 from ..services.questions import questions_for
-from ..services.scoring import SCORING_VERSION, score_open_answer
+from ..services.scoring import SCORING_VERSION, check_against_mcq, score_open_answer
 
 router = APIRouter(prefix="/diagnostic", tags=["diagnostic"])
 
@@ -41,6 +41,7 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
 
     # Build and score every answer before touching the database.
     new_rows = []
+    open_results = []  # (row, ScoreResult) for open answers, filled in once the MCQ average is known
     for a in body.answers:
         q = assigned[a.question_id]
         resp = models.Response(membership_id=m.id, question_id=q["id"])
@@ -55,16 +56,22 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
             text = a.answer.strip()
             if not text:
                 raise HTTPException(400, f"Answer for {q['id']} cannot be empty")
-            # Never raises: output the model got wrong comes back as status "needs_review".
-            result = score_open_answer(q["text"], text)
             resp.answer = text
-            resp.status = result.status
-            resp.score = result.score
-            resp.reason = result.reason
-            resp.flags = result.flags
-            resp.adjustments = result.adjustments
-            resp.scoring_version = SCORING_VERSION
+            # Never raises: output the model got wrong comes back as status "needs_review".
+            open_results.append((resp, score_open_answer(q["text"], text)))
         new_rows.append(resp)
+
+    # Compare each open-answer score with this submission's MCQ answers (after the data-risk cap).
+    mcq_scores = [r.score for r in new_rows if r.status == "mcq"]
+    mcq_average = sum(mcq_scores) / len(mcq_scores) if mcq_scores else None
+    for resp, result in open_results:
+        result = check_against_mcq(result, mcq_average)
+        resp.status = result.status
+        resp.score = result.score
+        resp.reason = result.reason
+        resp.flags = result.flags
+        resp.adjustments = result.adjustments
+        resp.scoring_version = SCORING_VERSION
 
     # Replace the previous attempt: delete and insert in one transaction, so either both happen or neither.
     # If anything above raised, we never get here and the session is rolled back when it closes.

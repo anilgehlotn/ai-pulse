@@ -8,13 +8,16 @@ from .llm import ALLOWED_FLAGS
 
 MAX_REASON_LENGTH = 300
 # Stored with every open answer. Bump it whenever the prompt or the parsing rules change.
-SCORING_VERSION = "open-v3"
+SCORING_VERSION = "open-v4"
 # One try plus one retry.
 MAX_ATTEMPTS = 2
 
 # Sharing customer or confidential data is never good practice, so the model may not reward it.
 DATA_RISK_FLAGS = ("customer_data_shared", "confidential_data_shared")
 DATA_RISK_MAX_SCORE = 3
+
+# An open answer scoring this far above the same person's MCQ average is sent to a human.
+INCONSISTENCY_GAP = 2
 
 # Cheap first line of defence: answers containing these are sent to a human, never to the model.
 # Compared in lower case with whitespace collapsed.
@@ -101,6 +104,24 @@ def cap_for_data_risk(result: ScoreResult) -> ScoreResult:
             "adjustments": result.adjustments + ["capped_for_data_risk"],
         })
     return result
+
+
+def check_against_mcq(result: ScoreResult, mcq_average: float | None) -> ScoreResult:
+    """Don't trust an open-answer score far above the same person's MCQ answers.
+
+    Only an inflated score triggers this. A wrongly high score is the harmful case: it is what a
+    successful prompt injection produces, and it makes a team look better than it is. A low open
+    score next to high MCQs is not an attack, and the MCQs already pull that person's average up.
+    The check uses no wording at all, so rephrasing an injection can't get round it.
+    """
+    if mcq_average is None or result.status != "scored":
+        return result
+    if result.score - mcq_average < INCONSISTENCY_GAP:
+        return result
+    note = f"inconsistent_with_mcq (model score {result.score}, MCQ average {mcq_average:.2f})"
+    # Keep the flags and the model's score (in the note) so a reviewer can see what the model said.
+    return ScoreResult(status="needs_review", reason="inconsistent_with_mcq", flags=result.flags,
+                       adjustments=result.adjustments + [note])
 
 
 def looks_like_injection(answer: str) -> bool:
