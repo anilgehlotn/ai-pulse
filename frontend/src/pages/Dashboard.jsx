@@ -6,7 +6,8 @@ export default function Dashboard({ org }) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    api(`/dashboard?org_id=${org.org_id}`).then(setData);
+    // The server picks the organization from the token chosen in OrgPicker.
+    api("/dashboard").then(setData);
   }, [org]);
 
   return (
