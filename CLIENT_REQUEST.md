@@ -14,11 +14,19 @@
 
 ## Status
 
-Both items are done, in #10.
+Both items are done, in PR #10.
 
-1. **No small groups on the dashboard:** done (#1). Teams under 5 respondents are merged into "Other teams" or
-   hidden, the overall figure is hidden whenever anyone is hidden, and risk counts under 5 read "fewer than 5".
-2. **Right to delete:** done (#2). Employees can delete all their answers from My report; dashboards change on the
-   next request.
+1. **No small groups on the dashboard:** done (closes #1). Teams under 5 respondents are merged into "Other teams" or
+   hidden, the overall figure is hidden whenever anyone is hidden, and risk counts under 5 read "fewer than 5". Risks
+   are never shown per team.
+2. **Right to delete:** done (closes #2). Employees can delete all their answers from My report by typing `DELETE`.
+   Dashboards are computed on every request, so the change shows on the next load.
 
-Open questions for Northwind are listed in the README under "What I'd ask Northwind".
+Open questions for Northwind (full list in the README under
+[What I'd ask Northwind](README.md#what-id-ask-northwind)):
+
+- Is it OK that "Other teams" names the small teams it contains?
+- Should visible teams' risks still show when some teams are hidden?
+- Which fix for the snapshot-over-time leak (#14): scheduled refresh, levels only, or noise?
+- Is "5" counted against people who completed the diagnostic, or people invited?
+- Should deletion also cover backups, and how long are answers kept?
