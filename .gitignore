@@ -10,3 +10,7 @@ test.db
 *.sqlite3
 .coverage
 htmlcov/
+
+# Playwright output (e2e/)
+playwright-report/
+test-results/
