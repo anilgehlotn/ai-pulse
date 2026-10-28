@@ -26,3 +26,24 @@ export const NO_VALUE = "—";
 export function show(value) {
   return value === null || value === undefined ? NO_VALUE : value;
 }
+
+export function hasValue(value) {
+  return value !== null && value !== undefined;
+}
+
+// "Asha Rao" -> "Asha"
+export function firstName(name) {
+  return name.split(" ")[0];
+}
+
+// "Asha Rao" -> "AR"
+export function initials(name) {
+  return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+export const ROLE_LABELS = { admin: "Admin", employee: "Employee" };
+
+// "Wednesday 28 October", for the greeting at the top of a page.
+export function today() {
+  return new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}

@@ -35,32 +35,34 @@ export default function QuadrantChart({ groups }) {
         </desc>
 
         {/* The risky corner is tinted, and also labelled in words. */}
-        <rect className="q-exposed" x={x(THRESHOLD)} y={y(THRESHOLD)} width={x(5) - x(THRESHOLD)} height={y(1) - y(THRESHOLD)} />
         <rect className="q-frame" x={x(1)} y={y(5)} width={PLOT} height={PLOT} />
+        <rect className="q-exposed" x={x(THRESHOLD)} y={y(THRESHOLD)} width={x(5) - x(THRESHOLD)} height={y(1) - y(THRESHOLD)} />
 
         {TICKS.map((t) => (
           <g key={t} className="q-tick">
-            <text x={x(t)} y={y(1) + 18} textAnchor="middle">{t}</text>
-            <text x={x(1) - 10} y={y(t) + 4} textAnchor="end">{t}</text>
+            <line className="q-grid" x1={x(t)} y1={y(5)} x2={x(t)} y2={y(1)} />
+            <line className="q-grid" x1={x(1)} y1={y(t)} x2={x(5)} y2={y(t)} />
+            <text x={x(t)} y={y(1) + 20} textAnchor="middle">{t}</text>
+            <text x={x(1) - 12} y={y(t) + 4} textAnchor="end">{t}</text>
           </g>
         ))}
         <line className="q-line" x1={x(THRESHOLD)} y1={y(5)} x2={x(THRESHOLD)} y2={y(1)} />
         <line className="q-line" x1={x(1)} y1={y(THRESHOLD)} x2={x(5)} y2={y(THRESHOLD)} />
 
-        <text className="q-corner" x={x(1) + 8} y={y(5) + 18}>Cautious</text>
-        <text className="q-corner" x={x(5) - 8} y={y(5) + 18} textAnchor="end">Leading</text>
-        <text className="q-corner" x={x(1) + 8} y={y(1) - 10}>Getting started</text>
-        <text className="q-corner q-corner-warn" x={x(5) - 8} y={y(1) - 10} textAnchor="end">Exposed</text>
+        <text className="q-corner" x={x(1) + 10} y={y(5) + 22}>Cautious</text>
+        <text className="q-corner" x={x(5) - 10} y={y(5) + 22} textAnchor="end">Leading</text>
+        <text className="q-corner" x={x(1) + 10} y={y(1) - 12}>Getting started</text>
+        <text className="q-corner q-corner-warn" x={x(5) - 10} y={y(1) - 12} textAnchor="end">Exposed</text>
 
-        <text className="q-axis" x={x(3)} y={HEIGHT - 8} textAnchor="middle">Adoption: how much AI is used →</text>
+        <text className="q-axis" x={x(3)} y={HEIGHT - 8} textAnchor="middle">Adoption: how much AI is used</text>
         <text className="q-axis" transform={`translate(16 ${y(3)}) rotate(-90)`} textAnchor="middle">
-          Safety: how safely it is used →
+          Safety: how safely it is used
         </text>
 
         {placed.map((g) => (
           <g key={g.name} className="q-dot">
-            <circle cx={x(g.adoption)} cy={y(g.safety)} r="6" />
-            <text x={x(g.adoption) + 10} y={y(g.safety) + 4}>{g.name}</text>
+            <circle cx={x(g.adoption)} cy={y(g.safety)} r="7" />
+            <text x={x(g.adoption) + 12} y={y(g.safety) + 4}>{g.name}</text>
           </g>
         ))}
       </svg>

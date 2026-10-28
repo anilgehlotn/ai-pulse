@@ -21,6 +21,19 @@ AI Pulse measures how well a company's people use AI at work. Employees take a s
 role and seniority and get a personal report. Leadership sees team-level results, with a privacy rule that stops any
 individual from being identified.
 
+## Screenshots
+
+Leadership dashboard (Asha, Northwind):
+
+![Leadership dashboard for Northwind Logistics](docs/screenshots/dashboard-asha-desktop.png)
+
+Employee report (Rohan, Exposed quadrant):
+
+![Rohan's personal report](docs/screenshots/report-rohan-desktop.png)
+
+More in [docs/screenshots/](docs/screenshots/), each at 1440px and 375px wide: login, the fully hidden Bluepeak
+dashboard (no numbers at all), and the diagnostic.
+
 ## Quick start
 
 ### Docker (one command)
