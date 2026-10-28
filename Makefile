@@ -1,12 +1,13 @@
 # Shortcuts for running AI Pulse. Run `make <target>` from the repo root.
 PY = backend/.venv/bin/python
 
-.PHONY: setup seed backend frontend test eval eval-live up down
+.PHONY: setup seed backend frontend test e2e eval eval-live up down
 
-# Install backend (in backend/.venv) and frontend dependencies.
+# Install backend (in backend/.venv), frontend and end-to-end test dependencies.
 setup:
 	python3 -m venv backend/.venv && $(PY) -m pip install -r backend/requirements.txt
 	cd frontend && npm ci
+	cd e2e && npm ci && npx playwright install chromium
 
 # Wipe the local database and load the demo data (password: pulse123).
 seed:
@@ -24,6 +25,10 @@ frontend:
 test:
 	cd backend && .venv/bin/python -m pytest -q
 	cd frontend && npm test
+
+# Browser tests. Playwright starts the API (port 8000) and a production build of the web app itself.
+e2e:
+	cd e2e && npx playwright test
 
 # Scoring eval with canned AI replies (what CI runs).
 eval:

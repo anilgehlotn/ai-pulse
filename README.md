@@ -403,6 +403,10 @@ frontend/src/
   pages/                  Login, OrgPicker, Diagnostic, Report, Dashboard
   components/             TopBar, Tabs, Badge, ScoreBar, QuadrantChart, DeleteMyData, Status
   test/                   vitest tests and fixtures
+e2e/
+  playwright.config.js    starts the API and a production build of the web app
+  backend.js              ports, the throwaway database, reseed()
+  tests/                  browser tests, one file per area
 docs/eval/                eval write-up and raw runs
 docker-compose.yml, Makefile, .github/workflows/ci.yml
 ```
@@ -413,6 +417,7 @@ docker-compose.yml, Makefile, .github/workflows/ci.yml
 |---|---|---|
 | Backend (pytest) | 232 tests | `cd backend && .venv/bin/python -m pytest -q` |
 | Frontend (vitest + Testing Library) | 17 tests | `cd frontend && npm test` |
+| End-to-end (Playwright, Chromium) | 7 tests | `make e2e` |
 | Scoring eval, mock | 15 dev cases | `make eval` |
 | Scoring eval, live | 25 cases | `make eval-live` (needs Ollama with llama3.2) |
 
@@ -421,8 +426,25 @@ docker-compose.yml, Makefile, .github/workflows/ci.yml
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every pull request and on pushes to `main`:
 - **Backend:** pytest, then the mock eval.
 - **Frontend:** `npm ci`, `npm test`, `npm run build`.
+- **E2E:** the Playwright tests below. On failure the HTML report and traces are uploaded as the `playwright-report` artifact.
 
 In mock mode the eval only gates on injections, because some canned replies are deliberately broken.
+
+### End-to-end tests
+
+The unit tests check each piece on its own; the tests in [e2e/](e2e/) check that the pieces work together
+in a real browser. Playwright seeds a fresh SQLite file in the temp folder, starts the API on port 8000
+(`AI_MODE=mock`, `APP_ENV=test`), builds the web app with `VITE_API_URL` pointing at it, serves the build
+with `vite preview` on port 4173, and waits for `/health` and the site before the first test.
+
+The tests act like a user: they find things by role, label and text, not CSS classes. They cover the
+admin dashboard, the hidden totals for a small organization, switching organizations, an employee's report,
+taking the diagnostic, deleting your data, the review queue, and a tampered token.
+
+- Each test reseeds the database first, so no test depends on another. That's also why they run one at a time.
+- The login limit per IP is raised to 1000 for these tests, because every login comes from localhost.
+- To run next to a dev backend that already uses port 8000: `E2E_API_PORT=8001 make e2e`.
+- After a failure, `cd e2e && npx playwright show-report` opens the report with traces.
 
 ## How I used AI tools
 
