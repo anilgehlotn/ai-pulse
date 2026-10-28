@@ -20,6 +20,27 @@ export function riskText(map, flag) {
   return map[flag] || flag;
 }
 
+// Why an answer was sent to a person instead of being scored by the AI (the backend's reason codes).
+const REVIEW_REASONS = {
+  possible_prompt_injection: "The answer looks like it is trying to give the AI instructions.",
+  inconsistent_with_mcq: "The AI's score was much higher than the writer's multiple-choice answers.",
+};
+
+export function reviewReason(code) {
+  if (REVIEW_REASONS[code]) return REVIEW_REASONS[code];
+  if (code.startsWith("llm_")) return "The AI service didn't reply properly.";
+  return "The AI's reply couldn't be used.";
+}
+
+// The 1-5 rubric, in the reviewer's words. Same scale the AI uses.
+export const RUBRIC = {
+  1: "No AI use",
+  2: "Occasional, basic use",
+  3: "Regular use for simple tasks",
+  4: "Thoughtful use, output checked",
+  5: "Changes how the work is done",
+};
+
 // Shown when the backend sends null: there was not enough to calculate a value.
 export const NO_VALUE = "—";
 
@@ -41,7 +62,7 @@ export function initials(name) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export const ROLE_LABELS = { admin: "Admin", employee: "Employee" };
+export const ROLE_LABELS = { admin: "Admin", employee: "Employee", reviewer: "Reviewer" };
 
 // "Wednesday 28 October", for the greeting at the top of a page.
 export function today() {

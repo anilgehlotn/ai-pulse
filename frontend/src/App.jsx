@@ -5,6 +5,7 @@ import OrgPicker from "./pages/OrgPicker.jsx";
 import Diagnostic from "./pages/Diagnostic.jsx";
 import Report from "./pages/Report.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Review from "./pages/Review.jsx";
 import TopBar from "./components/TopBar.jsx";
 import Tabs from "./components/Tabs.jsx";
 import { ErrorBox, Loading } from "./components/Status.jsx";
@@ -16,13 +17,15 @@ const ADMIN_TABS = [
   { id: "report", label: "My report" },
 ];
 const EMPLOYEE_TABS = ADMIN_TABS.slice(1);
+const REVIEWER_TABS = [{ id: "review", label: "Review" }, ...EMPLOYEE_TABS];
+const TABS = { admin: ADMIN_TABS, reviewer: REVIEWER_TABS, employee: EMPLOYEE_TABS };
 
 // The steps: restoring the session -> login -> pick an organization -> one of the tabs.
 export default function App() {
   const [restoring, setRestoring] = useState(Boolean(getToken()));
   const [user, setUser] = useState(null);   // {name, organizations: [{org_id, org_name, role}]}
   const [org, setOrg] = useState(null);     // the selected organization
-  const [view, setView] = useState(null);   // "dashboard" | "diagnostic" | "report"
+  const [view, setView] = useState(null);   // "dashboard" | "review" | "diagnostic" | "report"
   const [notice, setNotice] = useState(""); // shown on the login page
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState("");
@@ -35,12 +38,17 @@ export default function App() {
     setNotice(message);
   }
 
-  // Admins start on the dashboard. Employees start on their report if they have one.
+  // Admins start on the dashboard, reviewers on the review queue.
+  // Employees start on their report if they have one.
   async function enterOrg(o) {
     setOrg(o);
     setView(null);
     if (o.role === "admin") {
       setView("dashboard");
+      return;
+    }
+    if (o.role === "reviewer") {
+      setView("review");
       return;
     }
     try {
@@ -92,7 +100,7 @@ export default function App() {
   if (restoring) return <div className="shell"><div className="page"><Loading what="Restoring your session" /></div></div>;
   if (!user) return <div className="shell"><div className="page"><Login notice={notice} onLoggedIn={loggedIn} /></div></div>;
 
-  const tabs = org && org.role === "admin" ? ADMIN_TABS : EMPLOYEE_TABS;
+  const tabs = (org && TABS[org.role]) || EMPLOYEE_TABS;
   const name = firstName(user.name);
   return (
     <div className="shell">
@@ -111,6 +119,7 @@ export default function App() {
         {org && view && (
           <main key={`${org.org_id}-${view}`}>
             {view === "dashboard" && <Dashboard firstName={name} />}
+            {view === "review" && <Review />}
             {view === "diagnostic" && <Diagnostic onSubmitted={() => setView("report")} />}
             {view === "report" && <Report firstName={name} onTakeDiagnostic={() => setView("diagnostic")} />}
           </main>

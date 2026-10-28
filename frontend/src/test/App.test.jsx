@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import App from "../App.jsx";
 import { getToken, setToken } from "../api.js";
 import { fakeServer } from "./fakeServer.js";
-import { NORTHWIND_DASHBOARD } from "./fixtures.js";
+import { NORTHWIND_DASHBOARD, REVIEW_QUEUE } from "./fixtures.js";
 
 const ASHA = {
   name: "Asha Rao",
@@ -31,5 +31,19 @@ describe("App session", () => {
     expect(await screen.findByText("Your session expired. Please sign in again.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sign in to AI Pulse" })).toBeInTheDocument();
     expect(getToken()).toBe(null);
+  });
+
+  it("takes a reviewer straight to the review queue, with no dashboard tab", async () => {
+    setToken("saved-token");
+    const org = { org_id: 1, org_name: "Northwind Logistics", role: "reviewer" };
+    fakeServer({
+      "GET /auth/me": { body: { name: "Sunil Batra", organizations: [org], selected_org: org } },
+      "GET /review/queue": { body: REVIEW_QUEUE },
+    });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Review" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("button", { name: "Dashboard" })).toBeNull();
+    expect(screen.getByText("Reviewer")).toBeInTheDocument();
   });
 });
