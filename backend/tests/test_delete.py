@@ -73,15 +73,15 @@ def test_deletion_shows_on_the_dashboard_immediately(client):
     delete_my_data(client, headers)
     after = northwind(client)
 
-    # Sales drops to 4 respondents, so it is merged into Other teams (4 + 3 + 2 = 9 respondents).
+    # Sales drops to 4 respondents, so it is merged into Other teams (4 + 3 + 3 = 10 respondents).
     assert [g["name"] for g in after["groups"]] == ["Support", "Other teams"]
     other = after["groups"][1]
     assert other["privacy"] == "merged"
     assert other["teams"] == ["Sales", "Engineering", "HR", "Unassigned"]
-    assert other["respondents"] == 9
+    assert other["respondents"] == 10
     # Rule d: nobody is hidden, so the overall figure stays, and nobody is left over by subtraction.
     assert after["overall"]["privacy"] == "shown"
-    assert after["overall"]["respondents"] == 15
+    assert after["overall"]["respondents"] == 16
     assert subtraction_attack(after)[0] == 0
 
 
