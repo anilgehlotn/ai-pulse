@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models
 from ..auth import DUMMY_PASSWORD_HASH, verify_password, make_token, current_user, selected_org_id
+from ..rate_limit import login_limiter, too_many_attempts_message
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -23,12 +24,25 @@ def organizations_of(user: models.User):
 
 
 @router.post("/login")
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    # The limit is per email (lower-cased, registered or not) and per IP. See app/rate_limit.py.
+    email_key = body.email.strip().lower()
+    # The address that actually connected. We don't read X-Forwarded-For: the caller writes that header,
+    # so an attacker could put a new IP in it on every request. Behind a proxy or load balancer, configure
+    # its address as trusted (for example uvicorn --proxy-headers --forwarded-allow-ips) instead.
+    ip = request.client.host if request.client else "unknown"
+    wait = login_limiter.seconds_to_wait(email_key, ip)
+    if wait:
+        raise HTTPException(429, too_many_attempts_message(wait), headers={"Retry-After": str(wait)})
+    login_limiter.record_attempt(ip)
+
     user = db.query(models.User).filter_by(email=body.email).first()
     # Always run one bcrypt check, even for unknown emails, so timing doesn't reveal who is registered.
     password_ok = verify_password(body.password, user.password_hash if user else DUMMY_PASSWORD_HASH)
     if not user or not password_ok:
+        login_limiter.record_failure(email_key)
         raise HTTPException(401, "Wrong email or password")
+    login_limiter.record_success(email_key)
     return {"token": make_token(user.id), "name": user.name, "organizations": organizations_of(user)}
 
 

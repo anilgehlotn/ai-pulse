@@ -43,6 +43,17 @@ def check_min_group_size(value: int) -> int:
     return value
 
 
+def positive_int(name: str, value: str) -> int:
+    """A setting that must be a whole number of at least 1. Stops the app at startup otherwise."""
+    try:
+        number = int(value)
+    except ValueError:
+        raise RuntimeError(f"{name} must be a whole number of at least 1, not '{value}'")
+    if number < 1:
+        raise RuntimeError(f"{name} must be a whole number of at least 1, not '{value}'")
+    return number
+
+
 def parse_origins(value: str) -> list[str]:
     return [origin.strip() for origin in value.split(",") if origin.strip()]
 
@@ -62,3 +73,9 @@ TOKEN_HOURS = 12
 MIN_GROUP_SIZE = check_min_group_size(int(os.getenv("MIN_GROUP_SIZE", "5")))
 # bcrypt cost factor. Each +1 doubles the work; tests lower it to stay fast.
 BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
+# Login rate limits (see app/rate_limit.py).
+# After this many failed logins for one email within the window, that email is refused until the window passes.
+LOGIN_MAX_FAILURES = positive_int("LOGIN_MAX_FAILURES", os.getenv("LOGIN_MAX_FAILURES", "5"))
+LOGIN_WINDOW_SECONDS = positive_int("LOGIN_WINDOW_SECONDS", os.getenv("LOGIN_WINDOW_SECONDS", "900"))
+# Login attempts allowed from one client IP per minute, successful or not.
+LOGIN_MAX_PER_IP = positive_int("LOGIN_MAX_PER_IP", os.getenv("LOGIN_MAX_PER_IP", "30"))
