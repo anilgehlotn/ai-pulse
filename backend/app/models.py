@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -6,6 +7,11 @@ from .db import Base
 
 def utc_now():
     return datetime.now(timezone.utc)
+
+
+def new_review_id():
+    """A random id for the review queue. Unlike the row id it says nothing about who answered or when."""
+    return secrets.token_hex(12)
 
 
 class Organization(Base):
@@ -39,7 +45,7 @@ class Membership(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
-    role: Mapped[str] = mapped_column(String(20))        # "admin" | "employee"
+    role: Mapped[str] = mapped_column(String(20))        # "admin" | "employee" | "reviewer"
     job_role: Mapped[str] = mapped_column(String(40))    # e.g. "support", "engineering", "sales", "manager"
     seniority: Mapped[str] = mapped_column(String(20))   # "junior" | "mid" | "senior" | "lead"
     user = relationship("User", back_populates="memberships")
@@ -64,6 +70,25 @@ class Response(Base):
     # Rules applied on top of the model's score, e.g. ["capped_for_data_risk"]. None for MCQs.
     adjustments: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    # The only id the review queue shows. See new_review_id.
+    review_id: Mapped[str] = mapped_column(String(32), unique=True, default=new_review_id)
+    # Set when a person scores a needs_review answer.
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ReviewEvent(Base):
+    """Accountability record for one human review.
+
+    The reviewer is recorded. The author is not: review_id is the random id, not a link to the
+    answer's row, so the log keeps working (and still identifies no author) after they delete their data.
+    """
+    __tablename__ = "review_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    review_id: Mapped[str] = mapped_column(String(32))
+    reviewer_membership_id: Mapped[int] = mapped_column(ForeignKey("memberships.id"))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    old_status: Mapped[str] = mapped_column(String(20))
+    new_score: Mapped[int] = mapped_column(Integer)
 
 
 class DeletionEvent(Base):
