@@ -41,7 +41,37 @@ describe("Dashboard", () => {
   it("shows 'fewer than 5' as text, never as a number", async () => {
     showDashboard(NORTHWIND_DASHBOARD);
     const overall = await screen.findByRole("region", { name: "Whole organization" });
-    expect(within(overall).getAllByText("fewer than 5").length).toBe(4);  // 3 risks + awaiting review
+    expect(within(overall).getAllByText("fewer than 5").length).toBe(1);  // awaiting review
+    const risks = screen.getByRole("region", { name: "Top risks" });
+    expect(within(risks).getAllByText("fewer than 5").length).toBe(3);
+  });
+
+  it("replaces the KPI row with the reason, and shows no figures anywhere, when the overall is hidden", async () => {
+    showDashboard(BLUEPEAK_DASHBOARD);
+    const overall = await screen.findByRole("region", { name: "Whole organization" });
+    expect(within(overall).getByText("Organization totals are hidden")).toBeInTheDocument();
+    expect(within(overall).queryByText("Respondents")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Maturity" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Top risks" })).toBeNull();
+    expect(screen.queryByRole("img", { name: /Average score/ })).toBeNull();
+  });
+
+  it("shows the backend's KPI values unchanged", async () => {
+    const overall = { ...NORTHWIND_DASHBOARD.overall, respondents: 16, average_score: 2.95, awaiting_review: 7 };
+    showDashboard({ ...NORTHWIND_DASHBOARD, overall });
+    const tiles = await screen.findByRole("region", { name: "Whole organization" });
+    expect(within(tiles).getByText("16")).toBeInTheDocument();
+    expect(within(tiles).getByText("2.95")).toBeInTheDocument();   // not rounded to 3.0 or 3
+    expect(within(tiles).getByText("Exploring")).toBeInTheDocument();
+    expect(within(tiles).getByText("7")).toBeInTheDocument();
+    const maturity = screen.getByRole("region", { name: "Maturity" });
+    expect(within(maturity).getByText("2.95")).toBeInTheDocument();
+  });
+
+  it("says so calmly when no team needs urgent action", async () => {
+    showDashboard({ ...NORTHWIND_DASHBOARD, act_first: [] });
+    const actFirst = await screen.findByRole("region", { name: "Act first" });
+    expect(actFirst).toHaveTextContent("No team needs urgent action.");
   });
 
   it("shows an error when the dashboard cannot be loaded", async () => {

@@ -17,7 +17,8 @@ describe("App session", () => {
     setToken("saved-token");
     fakeServer({ "GET /auth/me": { body: ASHA }, "GET /dashboard": { body: NORTHWIND_DASHBOARD } });
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Northwind Logistics" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hello, Asha" })).toBeInTheDocument();
+    expect(screen.getAllByText("Northwind Logistics").length).toBeGreaterThan(0);
     expect(screen.getByText("Asha Rao")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: "Switch organization" })).toBeNull(); // only one org
