@@ -104,8 +104,8 @@ def test_dashboard_counts_answers_awaiting_review_and_ignores_them(client):
                 status="needs_review", score=5, flags=["confidential_data_shared"], reason="invalid_json")
     after = client.get("/dashboard", headers=headers).json()
 
-    assert before["overall"]["awaiting_review"] == "fewer than 5"
-    assert after["overall"]["awaiting_review"] == 5
+    assert before["overall"]["awaiting_review"] == "fewer than 5"  # Leela's 2 seeded answers
+    assert after["overall"]["awaiting_review"] == 7  # those 2 plus the 5 new ones
     assert after["groups"] == before["groups"]  # averages unchanged
     assert after["overall"]["top_risks"] == before["overall"]["top_risks"]  # flags ignored
 
@@ -115,4 +115,5 @@ def test_dashboard_review_count_is_per_org(client):
         add_row(f"{name}@northwind.test", "Northwind Logistics", status="needs_review", reason="invalid_json")
     add_row("tom@bluepeak.test", "Bluepeak Retail", status="needs_review", reason="invalid_json")
     headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
-    assert client.get("/dashboard", headers=headers).json()["overall"]["awaiting_review"] == 5
+    # Leela's 2 seeded answers plus the 5 Support ones; Tom's Bluepeak answer is not counted.
+    assert client.get("/dashboard", headers=headers).json()["overall"]["awaiting_review"] == 7

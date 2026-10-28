@@ -11,6 +11,7 @@ const DEMO_ACCOUNTS = [
   ["priya@northwind.test", "Employee, Support: partly answered"],
   ["farah@northwind.test", "Employee, Sales: not assessed yet"],
   ["meera@bluepeak.test", "Admin, Bluepeak Retail"],
+  ["reviewer@northwind.test", "Reviewer, Northwind: scores answers the AI couldn't"],
 ];
 const DEMO_PASSWORD = "pulse123";
 

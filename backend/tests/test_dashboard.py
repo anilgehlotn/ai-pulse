@@ -11,10 +11,13 @@ Northwind respondents (each person's own average; adoption / safety in brackets)
   Support:     Priya 2.5, Arjun 4, Kavitha 3, Lakshmi 3, Nikhil 2, Tara 4 -> 6, 18.5 / 6 = 3.08
                adoption (Priya 2 + 4 + 3 + 3 + 2 + 4) / 6 = 3.0,
                safety (Priya has none: 4 + 3 + 3 + 2 + 4) / 5 = 3.2 -> Leading
-  Engineering: Dev 4, Sara 3, Omar 2 -> 3      HR: Imran 2, Ravi 3 -> 2      Unassigned: Asha, no answers
-  Other teams = Engineering + HR + Unassigned -> 5 respondents, (9 + 5) / 5 = 2.8, 6 employees
-               adoption = safety = 2.8 (everyone answered both at their level) -> Getting started
-  Overall: 16 respondents, (13.90 + 18.5 + 14) / 16 = 2.90
+  Engineering: Dev 4, Sara 3, Omar 2 -> 3
+  HR:          Imran 2, Ravi 3, Leela 3 -> 3 (Leela's two open answers await review, so only her six
+               MCQs at 3 count)
+  Unassigned:  Asha (admin) and Sunil (reviewer), no answers
+  Other teams = Engineering + HR + Unassigned -> 6 respondents, (9 + 8) / 6 = 2.83, 8 employees
+               adoption = safety = (14 + 3) / 6 = 2.83 (everyone answered both at their level) -> Getting started
+  Overall: 17 respondents, (13.90 + 18.5 + 17) / 17 = 2.91. awaiting_review: Leela's 2 -> "fewer than 5"
   act_first: Sales only, gap 3.2 - 2.2 = 1.0.
   unreviewed_output: Neha, Rohan, Karan, Nikhil, Omar = 5. customer_data_shared: Priya, Kavitha, Lakshmi = 3.
   policy_unaware: Imran = 1. confidential_data_shared: nobody in Northwind.
@@ -64,15 +67,15 @@ def test_northwind_dashboard(client):
              "average_score": 3.08, "level": "Practitioner",
              "adoption": 3.0, "safety": 3.2, "quadrant": "Leading"},
             {"name": "Other teams", "privacy": "merged", "teams": ["Engineering", "HR", "Unassigned"],
-             "employees": 6, "respondents": 5, "average_score": 2.8, "level": "Exploring",
-             "adoption": 2.8, "safety": 2.8, "quadrant": "Getting started"},
+             "employees": 8, "respondents": 6, "average_score": 2.83, "level": "Exploring",
+             "adoption": 2.83, "safety": 2.83, "quadrant": "Getting started"},
         ],
         "act_first": [
             {"name": "Sales", "adoption": 3.2, "safety": 2.2, "gap": 1.0,
              "reason": "Uses AI often (3.2) but safety habits are low (2.2)"},
         ],
         "overall": {
-            "privacy": "shown", "respondents": 16, "average_score": 2.9, "level": "Exploring",
+            "privacy": "shown", "respondents": 17, "average_score": 2.91, "level": "Exploring",
             "top_risks": [
                 {"risk": "unreviewed_output", "people": 5},
                 {"risk": "confidential_data_shared", "people": FEWER},
@@ -100,7 +103,8 @@ def test_respondent_means_at_least_one_saved_answer(client):
 
 
 def test_hidden_remainder_hides_the_overall_figure(client):
-    # Without HR's answers, Other teams is Engineering's 3 people: too small, so it and the overall go.
+    # Without Imran's and Ravi's answers, Other teams is Engineering's 3 people plus Leela: 4, too small,
+    # so it and the overall go.
     remove_answers("imran@northwind.test", "Northwind Logistics")
     remove_answers("ravi@consult.test", "Northwind Logistics")
     data = northwind(client)
@@ -149,5 +153,5 @@ def test_seed_prints_a_summary(capsys):
     from app import seed
     seed.run()
     out = capsys.readouterr().out
-    assert "Northwind Logistics: Sales 5, Support 6, Engineering 3, HR 2, Unassigned 0" in out
+    assert "Northwind Logistics: Sales 5, Support 6, Engineering 3, HR 3, Unassigned 0" in out
     assert "Bluepeak Retail: Stores 1, Customer Care 1, Unassigned 1" in out
