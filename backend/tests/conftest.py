@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 
 import pytest
 
@@ -10,10 +11,21 @@ os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_test_db_dir.name, 'test.
 os.environ["APP_ENV"] = "test"
 os.environ["AI_MODE"] = "mock"
 os.environ["BCRYPT_ROUNDS"] = "4"  # minimum cost: real hashing, fast tests
+os.environ["LOGIN_MAX_FAILURES"] = "5"
+os.environ["LOGIN_WINDOW_SECONDS"] = "900"
+os.environ["LOGIN_MAX_PER_IP"] = "20"  # small, so the per-IP test is quick
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app import seed  # noqa: E402
+from app.rate_limit import login_limiter  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fresh_login_limiter():
+    """Every test starts with no recorded login attempts and the real clock."""
+    login_limiter.reset()
+    login_limiter.clock = time.monotonic
 
 
 @pytest.fixture()

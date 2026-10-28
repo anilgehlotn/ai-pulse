@@ -1,6 +1,6 @@
 import pytest
 
-from app.config import resolve_secret_key, parse_origins
+from app.config import positive_int, resolve_secret_key, parse_origins
 
 
 def test_secret_key_from_environment_is_used():
@@ -35,3 +35,10 @@ def test_cors_rejects_unknown_origin(client):
         "Access-Control-Request-Method": "GET",
     })
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_login_limits_must_be_whole_numbers_of_at_least_1():
+    assert positive_int("LOGIN_MAX_FAILURES", "5") == 5
+    for bad in ["0", "-3", "abc", "2.5", ""]:
+        with pytest.raises(RuntimeError, match="LOGIN_MAX_FAILURES"):
+            positive_int("LOGIN_MAX_FAILURES", bad)
