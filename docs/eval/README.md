@@ -114,6 +114,12 @@ The idea for layer 5 came from the holdout failure above, where a reworded injec
 5. But the rule uses **no wording from that case or any other**. It compares numbers the person gave us, so
 rephrasing an attack doesn't get around it.
 
+Anything a layer sends to `needs_review` waits in the pseudonymous human review queue (`GET /review/queue`, reviewer
+role only), where a person scores it without seeing who wrote it. See "Human review" in the main README.
+
+The current scoring version is `open-v4` (`SCORING_VERSION` in `backend/app/services/scoring.py`): open-v3's prompt
+plus the consistency check (layer 5). The results above were measured on open-v2 and open-v3.
+
 **This eval does not measure layer 5.** The harness scores each open answer on its own, without MCQ answers, so the
 check never runs here and the numbers above are unaffected by it. It is covered by unit tests in
 `backend/tests/test_consistency.py`.
