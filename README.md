@@ -97,6 +97,7 @@ original code (commit `5e3713c`).
 - CORS allowed every origin, method and header.
 - Login skipped the password check for unknown emails. Once passwords used bcrypt, that made unknown emails
   measurably faster than wrong passwords, which revealed who has an account.
+- Login had no rate limit, so passwords could be guessed without end. Now limited per email and per IP (#8).
 
 **Wrong numbers**
 - Dashboard averages divided the sum of every answer by the department's *headcount*, not by respondents.
@@ -156,13 +157,17 @@ The first fixes are single commits from before I started using pull requests. Th
 | Scoring quality | Holdout eval set, flag definitions, data-risk cap, MCQ consistency check | #11 (closes #3) |
 | Adoption vs Safety | Two axes per person and team, Act first, focus tip | #12 (closes #4) |
 | Frontend | Real dashboard, diagnostic and report; session restore; frontend tests in CI | #13 (closes #5) |
+| Login rate limit | 5 failed logins per email in 15 minutes, 30 attempts per IP per minute, then 429 with `Retry-After` | closes #8 |
 
 ## What I deliberately left, and why
 
 - **#6 Database migrations.** `create_all` plus reseed is fine for a demo. Alembic matters once a client has real data.
 - **#7 Tokens in httpOnly cookies, with revocation.** Tokens sit in `localStorage` for 12 hours. Worth fixing before
   rollout, but it changes the auth flow on both sides, so it deserves its own PR.
-- **#8 Login rate limiting.** Needs a decision on where the limit lives (app, proxy or gateway).
+- **#8 Login rate limiting. Closed by this PR.** In the app, per email and per IP (`app/rate_limit.py`). Its weakness:
+  it lives in one process's memory, so it resets when the API restarts and isn't shared between several instances.
+  A shared store such as Redis would fix both. It also sees the proxy's address, not the user's, until the proxy is
+  configured as trusted (it deliberately ignores `X-Forwarded-For`, which a caller can fake).
 - **#9 Human review queue. Closed by this PR.** See [Human review](#human-review).
 - **Snapshot leak over time.** Described in #10: comparing two saved dashboards before and after a known person
   submits or deletes reveals that person's average. The fix is a product and legal choice, so I asked Northwind first
