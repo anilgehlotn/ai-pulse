@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
 import { ErrorBox, InfoBox } from "../components/Status.jsx";
+import BrandMark from "../components/BrandMark.jsx";
 
 // Seeded by backend/app/seed.py. Only listed in development builds.
 const DEMO_ACCOUNTS = [
@@ -33,8 +34,12 @@ export default function Login({ notice, onLoggedIn }) {
 
   return (
     <div className="narrow stack">
-      <form className="card stack" onSubmit={submit}>
-        <h1>Sign in to AI Pulse</h1>
+      <form className="card stack auth-card" onSubmit={submit}>
+        <BrandMark />
+        <div>
+          <h1>Sign in to AI Pulse</h1>
+          <p className="muted">See how your team uses AI, and how safely.</p>
+        </div>
         {notice && <InfoBox>{notice}</InfoBox>}
         <div className="field">
           <label htmlFor="email">Email</label>
@@ -47,14 +52,14 @@ export default function Login({ notice, onLoggedIn }) {
                  onChange={(e) => setPassword(e.target.value)} />
         </div>
         <ErrorBox message={error} />
-        <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        <button type="submit" className="wide" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
       </form>
 
       {import.meta.env.DEV && (
-        <aside className="card demo" aria-labelledby="demo-title">
+        <aside className="card demo stack" aria-labelledby="demo-title">
           <h2 id="demo-title">Demo accounts</h2>
           <p className="muted small">Development only. Every password is <code>{DEMO_PASSWORD}</code>.</p>
-          <ul>
+          <ul className="plain-list">
             {DEMO_ACCOUNTS.map(([demoEmail, role]) => (
               <li key={demoEmail}>
                 <button type="button" className="link"

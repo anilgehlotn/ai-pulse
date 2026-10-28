@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import TopBar from "./components/TopBar.jsx";
 import Tabs from "./components/Tabs.jsx";
 import { ErrorBox, Loading } from "./components/Status.jsx";
+import { firstName } from "./labels.js";
 
 const ADMIN_TABS = [
   { id: "dashboard", label: "Dashboard" },
@@ -88,29 +89,33 @@ export default function App() {
     startSession({ name: data.name, organizations: data.organizations, selected_org: null });
   }
 
-  if (restoring) return <div className="page"><Loading what="Restoring your session" /></div>;
-  if (!user) return <div className="page"><Login notice={notice} onLoggedIn={loggedIn} /></div>;
+  if (restoring) return <div className="shell"><div className="page"><Loading what="Restoring your session" /></div></div>;
+  if (!user) return <div className="shell"><div className="page"><Login notice={notice} onLoggedIn={loggedIn} /></div></div>;
 
   const tabs = org && org.role === "admin" ? ADMIN_TABS : EMPLOYEE_TABS;
+  const name = firstName(user.name);
   return (
-    <>
-      <TopBar user={user} org={org} onSwitchOrg={() => { setOrg(null); setView(null); }} onLogOut={() => signOut()} />
+    <div className="shell">
+      <TopBar
+        user={user}
+        org={org}
+        nav={org && view && <Tabs tabs={tabs} current={view} onSelect={setView} />}
+        onSwitchOrg={() => { setOrg(null); setView(null); }}
+        onLogOut={() => signOut()}
+      />
       <div className="page">
         {!org && (
           <OrgPicker organizations={user.organizations} busy={picking} error={error} onPick={chooseOrg} />
         )}
         {org && !view && (error ? <ErrorBox message={error} /> : <Loading what="Opening" />)}
         {org && view && (
-          <>
-            <Tabs tabs={tabs} current={view} onSelect={setView} />
-            <main key={`${org.org_id}-${view}`}>
-              {view === "dashboard" && <Dashboard />}
-              {view === "diagnostic" && <Diagnostic onSubmitted={() => setView("report")} />}
-              {view === "report" && <Report onTakeDiagnostic={() => setView("diagnostic")} />}
-            </main>
-          </>
+          <main key={`${org.org_id}-${view}`}>
+            {view === "dashboard" && <Dashboard firstName={name} />}
+            {view === "diagnostic" && <Diagnostic onSubmitted={() => setView("report")} />}
+            {view === "report" && <Report firstName={name} onTakeDiagnostic={() => setView("diagnostic")} />}
+          </main>
         )}
       </div>
-    </>
+    </div>
   );
 }

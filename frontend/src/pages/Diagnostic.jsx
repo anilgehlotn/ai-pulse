@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
+import { Sparkles } from "lucide-react";
 import { useApi } from "../useApi.js";
 import { ErrorBox, InfoBox, Loading } from "../components/Status.jsx";
 
@@ -44,9 +45,9 @@ export default function Diagnostic({ onSubmitted }) {
 
   return (
     <form className="stack" onSubmit={submit}>
-      <header className="page-head">
-        <h1>My diagnostic</h1>
+      <header className="greeting">
         <p className="muted">There are no right answers. Pick what you actually do today.</p>
+        <h1>My diagnostic</h1>
       </header>
 
       {alreadySubmitted && <InfoBox>Submitting again replaces your previous answers.</InfoBox>}
@@ -56,9 +57,15 @@ export default function Diagnostic({ onSubmitted }) {
         <QuestionGroup title="Your role" questions={forRole} answers={answers} onChange={setAnswer} />
       )}
 
+      <ErrorBox message={error} />
       <div className="submit-bar">
-        <p className="progress" aria-live="polite">{answeredCount} of {list.length} answered</p>
-        <ErrorBox message={error} />
+        <div className="progress">
+          <p aria-live="polite">{answeredCount} of {list.length} answered</p>
+          {/* Width only: the text above says the same thing. */}
+          <div className="progress-track" aria-hidden="true">
+            <div className="progress-fill" style={{ width: `${(answeredCount / list.length) * 100}%` }} />
+          </div>
+        </div>
         <button type="submit" disabled={!complete || submitting}>
           {submitting ? "Submitting…" : "Submit answers"}
         </button>
@@ -70,7 +77,7 @@ export default function Diagnostic({ onSubmitted }) {
 function QuestionGroup({ title, questions, answers, onChange }) {
   return (
     <section className="stack" aria-label={title}>
-      <h2>{title}</h2>
+      <h2 className="group-title">{title}</h2>
       {questions.map((q) => (q.type === "mcq"
         ? <ChoiceQuestion key={q.id} question={q} value={answers[q.id]} onChange={onChange} />
         : <OpenQuestion key={q.id} question={q} value={answers[q.id] || ""} onChange={onChange} />))}
@@ -82,18 +89,20 @@ function ChoiceQuestion({ question, value, onChange }) {
   return (
     <fieldset className="card question">
       <legend>{question.text}</legend>
-      {question.options.map((option) => (
-        <label key={option} className="choice">
-          <input
-            type="radio"
-            name={question.id}
-            value={option}
-            checked={value === option}
-            onChange={() => onChange(question.id, option)}
-          />
-          <span>{option}</span>
-        </label>
-      ))}
+      <div className="choices">
+        {question.options.map((option) => (
+          <label key={option} className={value === option ? "choice is-checked" : "choice"}>
+            <input
+              type="radio"
+              name={question.id}
+              value={option}
+              checked={value === option}
+              onChange={() => onChange(question.id, option)}
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
     </fieldset>
   );
 }
@@ -112,9 +121,10 @@ function OpenQuestion({ question, value, onChange }) {
         onChange={(e) => onChange(question.id, e.target.value)}
       />
       <p id={`${id}-count`} className="muted small counter">{value.length} / {MAX_LENGTH} characters</p>
-      <p id={`${id}-note`} className="note small">
-        This answer is scored by AI. Emails and phone numbers are removed before it is sent (please leave
-        out people's names too), and a person reviews anything the AI isn't sure about.
+      <p id={`${id}-note`} className="ai-note">
+        <Sparkles size={16} aria-hidden="true" />
+        <span>This answer is scored by AI. Emails and phone numbers are removed before it is sent (please leave
+        out people's names too), and a person reviews anything the AI isn't sure about.</span>
       </p>
     </div>
   );
