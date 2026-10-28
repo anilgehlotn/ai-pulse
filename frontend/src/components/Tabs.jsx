@@ -1,5 +1,6 @@
 import React from "react";
 
+// Pill tabs. The active one is filled coral and marked with aria-current.
 export default function Tabs({ tabs, current, onSelect }) {
   return (
     <nav className="tabs" aria-label="Sections">

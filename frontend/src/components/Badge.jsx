@@ -1,8 +1,8 @@
 import React from "react";
 
-// A small text label. The tone only adds colour: the text always says what it means.
-export default function Badge({ children, tone = "neutral" }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
+// A pill-shaped text label. The tone only adds colour: the text always says what it means.
+export default function Badge({ children, tone = "neutral", size }) {
+  return <span className={`badge badge-${tone} ${size === "large" ? "badge-large" : ""}`}>{children}</span>;
 }
 
 const QUADRANT_TONES = { Leading: "good", Exposed: "warn", Cautious: "info", "Getting started": "neutral" };

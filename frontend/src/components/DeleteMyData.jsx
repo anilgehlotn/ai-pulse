@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { api } from "../api.js";
 import { ErrorBox } from "./Status.jsx";
 
@@ -12,7 +13,12 @@ export default function DeleteMyData({ onDeleted }) {
   const [error, setError] = useState("");
 
   if (!open) {
-    return <button type="button" className="danger-outline" onClick={() => setOpen(true)}>Delete all my answers</button>;
+    return (
+      <button type="button" className="danger-outline" onClick={() => setOpen(true)}>
+        <Trash2 size={16} aria-hidden="true" />
+        Delete all my answers
+      </button>
+    );
   }
 
   async function confirmDelete(event) {
