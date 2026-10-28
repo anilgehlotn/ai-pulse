@@ -12,6 +12,11 @@ Sign in with any [demo account](#demo-accounts), password `pulse123`. Try:
 - `asha@northwind.test`: the leadership dashboard.
 - `ravi@consult.test`, then **Bluepeak Retail**: every team is too small, so no numbers are shown.
 - `rohan@northwind.test`: an employee report in the Exposed quadrant.
+- `reviewer@northwind.test`: the human review queue.
+
+The login page lists these accounts because the demo's frontend is built with `VITE_SHOW_DEMO_ACCOUNTS=true`.
+Set it on the public demo only; never on a real client deployment, where it would advertise test logins.
+Without it, production builds hide the list (development builds always show it).
 
 It runs on Render's free plan. The API sleeps when idle, so the first sign-in can take up to a minute, and the demo
 data resets whenever the API restarts. AI scoring runs in mock mode on the demo; to score with a real model, run it
@@ -60,7 +65,8 @@ make backend    # http://localhost:8000
 make frontend   # http://localhost:5173 (second terminal)
 ```
 
-In development the login page has a **Demo accounts** box: click an email to fill in the form.
+In development (and on the public demo, see [Live demo](#live-demo)) the login page has a **Demo accounts** box:
+click an email to fill in the form.
 
 ### Demo accounts
 
