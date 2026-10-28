@@ -73,6 +73,8 @@ Every password is `pulse123`.
 | rohan@northwind.test | Employee in Sales. Report in the **Exposed** quadrant (adoption 3, safety 2) with a data-handling tip. |
 | priya@northwind.test | Employee in Support who only answered two questions. Good for trying **Delete all my answers**. |
 | meera@bluepeak.test | Bluepeak admin. Same fully hidden dashboard as Ravi sees there. |
+| reviewer@northwind.test | Northwind reviewer. Lands on **Review** with two answers the AI couldn't score, and never sees who wrote them. |
+| leela@northwind.test | Employee in HR who wrote those two answers. Her report shows them as waiting until they are reviewed. |
 | dev@northwind.test | Engineering lead. Gets every engineering question (leads used to get only junior ones); report is **Leading**. |
 
 `make seed` resets everything, including anything you deleted.
@@ -161,8 +163,7 @@ The first fixes are single commits from before I started using pull requests. Th
 - **#7 Tokens in httpOnly cookies, with revocation.** Tokens sit in `localStorage` for 12 hours. Worth fixing before
   rollout, but it changes the auth flow on both sides, so it deserves its own PR.
 - **#8 Login rate limiting.** Needs a decision on where the limit lives (app, proxy or gateway).
-- **#9 Human review queue.** Answers marked `needs_review` are kept out of averages, but nobody can review them yet.
-  The data model already stores the reason and the model's original score for a reviewer.
+- **#9 Human review queue. Closed by this PR.** See [Human review](#human-review).
 - **Snapshot leak over time.** Described in #10: comparing two saved dashboards before and after a known person
   submits or deletes reveals that person's average. The fix is a product and legal choice, so I asked Northwind first
   (see below). See #14.
@@ -258,6 +259,31 @@ threshold of 3:
 
 **Limits.** The threshold is sharp (3.0 is Leading, 2.99 is not). Safety answers are self-reported, and people tend
 to rate their own habits kindly. Open answers don't feed either axis.
+
+## Human review
+
+Open answers the AI can't be trusted on (bad output, a likely prompt injection, or a score far above the person's
+own multiple-choice answers) are saved as `needs_review` and left out of every average. A **reviewer** scores them.
+
+**The reviewer never learns who wrote the answer.** `GET /review/queue` sends only a random review id, the
+question, the answer with emails and phone numbers removed (the same `prepare_answer` used before text goes to the
+AI), the AI's reason, its flags and notes. No name, email, ids, team, job role, seniority or submission time. A test
+walks the whole response and fails if any of those appear. The review id is random rather than the row id, because
+row ids go up in order and would hint at who submitted when. Reviewers never see their own answers.
+
+**The reviewer is still accountable.** `POST /review/{id}` saves the score and a `ReviewEvent` (review id, reviewer,
+time, old status, new score) in one transaction. The author is not in that record, and it stays meaningful after the
+author deletes their data. The same data-risk cap as the AI path applies: a data-sharing flag caps the score at 3.
+Unknown ids, answers already reviewed and answers from another organization all get the same 404. Once saved, the
+answer counts straight away in the writer's report and, through `publish_groups` as always, on the dashboard.
+
+**The honest limit.** This is pseudonymous, not anonymous. The text can identify its writer ("as the only lawyer
+here…", a project only one person works on, a writing style). Redaction removes emails and phone numbers, not names
+or context, so it reduces the risk but can't remove it. Reviewers should be few, trained, and outside the writer's
+reporting line.
+
+The schema gained two columns and a table, and there are no migrations yet (#6), so run `make seed` on an existing
+local database (with Docker: `docker compose down -v`, then `make up`).
 
 ## Can the AI parts be trusted?
 
@@ -427,4 +453,5 @@ The main thing I learned: trust the test set I didn't tune on, not the numbers t
 - **The eval is small.** 25 cases, all written by me, one small local model.
 - **SQLite.** One file, one writer at a time. Fine for a pilot, not for many concurrent users.
 - **Sharp quadrant threshold.** A team at 2.99 and one at 3.0 land in different quadrants.
-- **No review queue yet** (#9), so `needs_review` answers wait indefinitely.
+- **Review is pseudonymous, not anonymous** (#9). The answer text itself can sometimes give away who wrote it; see
+  [Human review](#human-review).
